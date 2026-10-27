@@ -123,37 +123,44 @@ solid, so levels are implicitly walled in. Glyph spawn markers sit in the cell t
 
 ## Art pipeline
 
-`Scripts/generate_placeholder_art.py` writes the current sprites — authored as character
-grids in the ZX Spectrum palette — into `Assets.xcassets` at their native 8×8 / 16×16
-sizes. It exists so the renderer, the atlas and the nearest-neighbour scaling path are
-exercised before the real art exists.
+The original is used as **reference only**. Two scripts turn the source material into
+data the port can learn from; both write into `Extracted/`, which is git-ignored because
+the artwork belongs to the game's authors and is not ours to redistribute.
 
-The intended pipeline is:
+```sh
+python3 -m pip install -r Scripts/requirements.txt
+make extract                      # both of the below
+python3 Scripts/extract_tape.py   # loading screen + memory map from the TZX
+python3 Scripts/extract_map.py    # rooms, tile set and actors from the map
+```
 
-1. Extract the map and sprite data from `resources/Wriggler.tzx`.
-2. Emit levels as JSON (the format above) and sprites as 1× PNGs into `Assets.xcassets`,
-   replacing the placeholder imagesets by name (`tile_wall`, `player_idle`, …).
-3. Nothing in the app changes — `PixelArt` looks sprites up by name and falls back to flat
-   ZX palette colours when an image is missing.
+### From the tape
 
-Rendering is pixel-perfect: the scene picks the largest integer scale of the 256×192
-Spectrum screen that fits, rounds every actor position to a whole virtual pixel, and every
-texture uses nearest-neighbour filtering. Larger screens simply reveal more of the maze.
+`resources/Wriggler.tzx` is a plain TZX 1.0 with six standard-speed blocks: two loaders
+(273 and 2200 bytes), the 6912-byte loading screen, and a 41768-byte block that fills
+`0x5CD8`–`0xFFFF` exactly. That last block is the game: the first ~26 KB is artwork and
+tables, the top ~15 KB is Z80 code (a linear sweep shows opcode density jumping from
+~8% to ~40% at `0xC4D8`, and it reads `LD A,(0x5C78)` for the frame counter and
+`IN A,(0x7FFE)` for the keyboard). `extract_tape.py` writes the loading screen, the 48K
+memory image, and a block table with the code/artwork split.
 
-## Workflow
+### From the map
 
-`main` is protected: changes land through pull requests only, and a pull request can
-only be merged once the `Lint` and `Build & Test` checks are green, its conversation is
-resolved, and its branch is up to date. Force pushes and deletions are blocked, and
-history stays linear (squash merges only).
+The community map stitches every room together. Each room is a 256×144 yellow frame on a
+288×176 grid, holding a **30×16 play area of 8×8 cells**, and the white lines between
+frames show which passage leads where. `extract_map.py` finds all 244 rooms, crops each
+one, deduplicates the 1396 distinct 8×8 cells into a 282-tile set, and harvests the
+creatures and props that are drawn in white over the tiles.
 
-CI runs on `macos-26` and does three things:
+What the maze contains:
 
-1. `swift format lint --strict` over `Sources` and `Tests`, plus a check that the
-   committed pixel art matches what `Scripts/generate_placeholder_art.py` produces.
-2. Generates the project with XcodeGen and runs the test suite on the newest available
-   iOS simulator (`swift format` config lives in [.swift-format](./.swift-format)).
-3. Builds the app for a real device destination, so device-only breakage is caught too.
+- **244 rooms** across a 39×38 grid, in colour-coded regions (green, red, blue)
+- **actors** — ants, spiders and snail/worm-like creatures, plus a few larger ones
+- **artefacts** — RIP tombstones, keys, mugs, bottles, skulls and wreaths, i.e. exactly
+  the static and collectable objects a port needs to reimplement
+- **terrain** — brick walls, water, foliage, ladders and gates, all on the 8×8 grid
+
+These are reference sheets for building new art, not assets to ship.
 
 ## Tests
 

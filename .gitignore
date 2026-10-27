@@ -16,3 +16,6 @@ xcuserdata/
 # Python
 __pycache__/
 *.pyc
+
+# Extracted original-game artwork - reference material, not redistributable
+Extracted/

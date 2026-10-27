@@ -15,6 +15,11 @@ generate:
 art:
 	python3 Scripts/generate_placeholder_art.py
 
+# Reference extraction from the original game; writes to git-ignored Extracted/.
+extract:
+	python3 Scripts/extract_tape.py
+	python3 Scripts/extract_map.py
+
 build: generate
 	$(XCODEBUILD) build
 
@@ -30,4 +35,4 @@ run: build
 clean:
 	rm -rf build Wriggler.xcodeproj
 
-.PHONY: generate art build test lint run clean
+.PHONY: generate art extract build test lint run clean
