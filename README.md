@@ -128,8 +128,8 @@ data the port can learn from; both write into `Extracted/`, which is git-ignored
 the artwork belongs to the game's authors and is not ours to redistribute.
 
 ```sh
-python3 -m pip install -r Scripts/requirements.txt
-make extract                      # both of the below
+python3 -m venv .venv && .venv/bin/pip install -r Scripts/requirements.txt
+make extract PYTHON=.venv/bin/python   # both of the below
 python3 Scripts/extract_tape.py   # loading screen + memory map from the TZX
 python3 Scripts/extract_map.py    # rooms, tile set and actors from the map
 ```

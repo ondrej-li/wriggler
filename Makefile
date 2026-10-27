@@ -1,5 +1,6 @@
 # Xcode is required for the iOS SDK; fall back to the standard install path when
 # `xcode-select` still points at the Command Line Tools.
+PYTHON ?= python3
 DEVICE ?= iPhone 18 Pro
 DEVELOPER_DIR ?= $(shell xcode-select -p 2>/dev/null | grep -q "Xcode.app" && xcode-select -p || echo /Applications/Xcode.app/Contents/Developer)
 export DEVELOPER_DIR
@@ -13,12 +14,12 @@ generate:
 	xcodegen generate
 
 art:
-	python3 Scripts/generate_placeholder_art.py
+	$(PYTHON) Scripts/generate_placeholder_art.py
 
 # Reference extraction from the original game; writes to git-ignored Extracted/.
 extract:
-	python3 Scripts/extract_tape.py
-	python3 Scripts/extract_map.py
+	$(PYTHON) Scripts/extract_tape.py
+	$(PYTHON) Scripts/extract_map.py
 
 build: generate
 	$(XCODEBUILD) build
