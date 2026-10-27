@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in the game or the tooling behaves incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please keep it reproducible — a one-line reproducer or a
+        screenshot of the level is worth more than a paragraph of description.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Launch with `-autostart`
+        2. Walk right into the crawler
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Simulation / physics (WrigglerCore)
+        - Rendering (SpriteKit)
+        - UI or input (SwiftUI)
+        - Level format or content
+        - Tooling / CI
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device, iOS and Xcode versions
+      placeholder: iPhone 17 Pro simulator, iOS 26.0, Xcode 26.6
+    validations:
+      required: true
