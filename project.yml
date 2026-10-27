@@ -1,0 +1,89 @@
+name: Wriggler
+
+options:
+  bundleIdPrefix: cz.ondrejli
+  createIntermediateGroups: true
+  groupSortPosition: top
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "27.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    GCC_WARN_UNUSED_VARIABLE: YES
+    CLANG_WARN_DOCUMENTATION_COMMENTS: YES
+
+targets:
+  WrigglerCore:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Sources/WrigglerCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cz.ondrejli.wriggler.core
+        PRODUCT_NAME: WrigglerCore
+        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: NO
+
+  Wriggler:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/Wriggler
+        excludes:
+          - "Resources/Info.plist"
+      - path: Sources/Wriggler/Resources/Levels
+        type: folder
+    dependencies:
+      - target: WrigglerCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cz.ondrejli.wriggler
+        PRODUCT_NAME: Wriggler
+        INFOPLIST_FILE: Sources/Wriggler/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    scheme:
+      gatherCoverageData: true
+      testTargets:
+        - WrigglerCoreTests
+
+  WrigglerCoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/WrigglerCoreTests
+      - path: Sources/Wriggler/Resources/Levels
+        type: folder
+    dependencies:
+      - target: WrigglerCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cz.ondrejli.wriggler.core.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Wriggler:
+    build:
+      targets:
+        Wriggler: all
+        WrigglerCoreTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - WrigglerCoreTests

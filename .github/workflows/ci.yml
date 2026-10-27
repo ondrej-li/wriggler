@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Formatting
+        run: swift format lint --recursive --strict Sources Tests
+
+      - name: Placeholder art is reproducible
+        run: |
+          python3 Scripts/generate_placeholder_art.py
+          git diff --exit-code
+
+  build-and-test:
+    name: Build & Test
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Select simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes --json \
+            | jq -r '[.runtimes[] | select(.isAvailable) | select(.platform == "iOS")] | sort_by(.version) | last.identifier')
+          udid=$(xcrun simctl list devices available --json \
+            | jq -r --arg rt "$runtime" '.devices[$rt] | map(select(.name | startswith("iPhone"))) | .[0].udid')
+          echo "Using $runtime ($udid)"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          xcodebuild -project Wriggler.xcodeproj \
+            -scheme Wriggler \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Build for device
+        run: |
+          xcodebuild -project Wriggler.xcodeproj \
+            -scheme Wriggler \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            build

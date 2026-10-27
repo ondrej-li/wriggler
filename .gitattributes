@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.png binary
+*.tzx binary
+
+*.xcodeproj/** linguist-generated=true
+*.pbxproj linguist-generated=true
