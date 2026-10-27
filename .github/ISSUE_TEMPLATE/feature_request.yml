@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a gameplay, art or tooling improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the current limitation or the player experience you are after.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Sketches, mechanics, references to the original Spectrum game — all welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Gameplay
+        - Level design
+        - Art or audio
+        - Tooling / CI
+    validations:
+      required: true
