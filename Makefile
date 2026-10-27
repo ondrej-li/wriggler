@@ -20,6 +20,7 @@ art:
 extract:
 	$(PYTHON) Scripts/extract_tape.py
 	$(PYTHON) Scripts/extract_map.py
+	$(PYTHON) Scripts/extract_links.py
 
 build: generate
 	$(XCODEBUILD) build

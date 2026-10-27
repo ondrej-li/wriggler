@@ -132,6 +132,7 @@ python3 -m venv .venv && .venv/bin/pip install -r Scripts/requirements.txt
 make extract PYTHON=.venv/bin/python   # both of the below
 python3 Scripts/extract_tape.py   # loading screen + memory map from the TZX
 python3 Scripts/extract_map.py    # rooms, tile set and actors from the map
+python3 Scripts/extract_links.py  # the room-to-room maze graph
 ```
 
 ### From the tape
@@ -159,6 +160,26 @@ What the maze contains:
 - **artefacts** — RIP tombstones, keys, mugs, bottles, skulls and wreaths, i.e. exactly
   the static and collectable objects a port needs to reimplement
 - **terrain** — brick walls, water, foliage, ladders and gates, all on the 8×8 grid
+
+### The maze graph
+
+`extract_links.py` traces the white bands that the map draws between rooms.
+Because the author routed every band through empty space, a band almost always
+touches exactly two rooms — so connected-component analysis recovers the graph
+directly. A band stopping just short of a frame is snapped to the nearest room;
+anything still ambiguous is emitted as `?` rather than guessed.
+
+Exits are written `row,col,slot`, with `0,0` at the top-left of the map and the
+slot encoding the side and which of the three positions on it:
+
+```
+0 1 2   top, left to right      6 7 8   bottom, right to left
+3 4 5   right, top to bottom    9 a b   left, bottom to top
+```
+
+So `0,0,8 -> 1,0,0` means "the bottom-left exit of the top-left room leads to the
+top-left exit of the room below it". Current result: 244 rooms, 674 exits,
+656 resolved, 18 left as `?`.
 
 These are reference sheets for building new art, not assets to ship.
 
