@@ -13,14 +13,16 @@ XCODEBUILD := xcodebuild -project Wriggler.xcodeproj -scheme Wriggler \
 generate:
 	xcodegen generate
 
-art:
-	$(PYTHON) Scripts/generate_placeholder_art.py
+# Rebuilds the maze data the game loads, from the map plus the curated links.
+maze:
+	$(PYTHON) Scripts/build_maze_data.py
 
 # Reference extraction from the original game; writes to git-ignored Extracted/.
 extract:
 	$(PYTHON) Scripts/extract_tape.py
 	$(PYTHON) Scripts/extract_map.py
 	$(PYTHON) Scripts/extract_links.py
+	$(PYTHON) Scripts/build_maze_data.py
 
 # Room-index labels burned onto the map; writes into resources/.
 annotate-map: extract
@@ -41,4 +43,4 @@ run: build
 clean:
 	rm -rf build Wriggler.xcodeproj
 
-.PHONY: generate art extract annotate-map build test lint run clean
+.PHONY: generate maze extract annotate-map build test lint run clean

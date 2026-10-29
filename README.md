@@ -2,30 +2,33 @@
 
 [![CI](https://github.com/ondrej-li/wriggler/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ondrej-li/wriggler/actions/workflows/ci.yml)
 
-An iOS port of the ZX Spectrum game **Wriggler** — a 2D maze platformer.
+An iOS port of the ZX Spectrum game **Wriggler** — a worm loose in a 244-room maze.
 
-This repository is a **skeleton**: the project structure, rendering pipeline, input
-handling and a fresh, testable game-logic core. The Spectrum original is used only as
-source material for the map and sprite art (extraction from `resources/Wriggler.tzx` is
-still to come); game mechanics, physics and AI are new implementations.
+The Spectrum original is source material only: the maze layout, its doorways and the
+position of the pickups were extracted from the map, but the game itself — movement,
+collision, items — is a new implementation. Room art is drawn at run time, so no
+original artwork is bundled.
+
+Playable now: eight-directional movement with tile collision, doorways between all
+244 rooms, and picking up, carrying and swapping objects. Next up is giving the
+objects effects, then enemies.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Wriggler (app)                                              │
-│  App/      SwiftUI shell: menu, HUD, overlays, touch pads   │
-│  Game/     SpriteKit renderer, pixel-perfect camera, input  │
-│  Content/  level discovery from the bundle                  │
+│  App/      SwiftUI shell: HUD, overlays, touch pad          │
+│  Game/     SpriteKit room renderer, input, session, art     │
 └───────────────────────────┬─────────────────────────────────┘
                             │ uses
 ┌───────────────────────────▼─────────────────────────────────┐
 │ WrigglerCore (framework, no SpriteKit / no UIKit)           │
-│  Vec2/AABB · TileMap · Level parsing · KinematicBody        │
-│  TileCollision · PlayerController · EnemyController · World │
+│  Vec2/AABB · TileKind · Room · Maze · Item                  │
+│  MazeMovement · MazePlayer · MazeWorld                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The simulation never imports SpriteKit, so it is deterministic, unit-testable, and could
-later run off the main thread or in a headless balance harness.
+The simulation never imports SpriteKit, so it is deterministic, unit-testable, and
+could later run off the main thread or in a headless balance harness.
 
 ## Requirements
 
@@ -41,128 +44,79 @@ make build      # build for the simulator
 make test       # run the core test suite
 make lint       # check formatting with swift-format
 make run        # build, install and launch on a simulator
-make art        # regenerate the placeholder pixel art
 ```
 
 `Wriggler.xcodeproj` is generated and therefore not committed — run `make generate`
 after pulling, or open `project.yml` and let your tooling regenerate it.
 
-Useful launch flag while iterating:
+Launch flags while iterating:
 
 ```sh
-xcrun simctl launch booted cz.ondrejli.wriggler -autostart
+xcrun simctl launch booted cz.ondrejli.wriggler -demo
 ```
 
-`-autostart` skips the menu and drops straight into the first level.
+`-demo` ignores the controls and drives a fixed walk: fetch the key in the start
+room, step back to the doorway and walk through it. Handy for checking that
+movement, pickup and room changes still work after a refactor.
 
 ## Controls
 
 | Action | Touch | Hardware keyboard |
 | --- | --- | --- |
-| Move / climb | on-screen D-pad | arrow keys, `WASD` |
-| Jump | `JUMP` | space, `Z`, `K` |
+| Move (eight directions) | on-screen cross; press two arrows for a diagonal | arrow keys, `WASD` |
+| Pick up / swap / use | `USE` | space, `E`, `Z` |
 | Pause | HUD button | `P`, escape |
-| Restart | overlay button | `R` |
+| Restart | HUD button | `R` |
 
-Touch controls write into `InputController`, the same press-state model the keyboard
-uses, so both paths funnel into one `GameInput` snapshot per frame.
+Touch and keyboard both feed `InputController`, so gameplay only ever sees one
+`GameInput` snapshot per frame.
 
-## Game model
+## The game
 
-**World units.** One unit is one tile. Tiles are 8×8 virtual pixels — a Spectrum
-character cell — and the y axis points down, so the grid indices match the level text.
+The player is a worm let loose in a 244-room maze. One room fills the screen;
+walk out through a doorway and you arrive in the connected room, at the matching
+doorway.
 
-**Fixed timestep.** `World.advance(deltaTime:input:)` accumulates real time and steps the
-simulation at 1/120 s. Rendering is decoupled and simply draws the latest snapshot, which
-keeps physics stable at any display refresh rate.
+**Movement** is eight-directional and free: no gravity, no jumping. Diagonal input
+is normalised so it is not faster than walking straight. Collision is per-axis
+against the room's tile grid, so the worm slides along walls instead of sticking.
 
-**Collision.** `TileCollision.move` resolves one axis at a time (X then Y) against the
-grid: intuitive wall sliding, no rotation, no physics engine. One-way platforms only
-block bodies falling from above. Ladders never block. Deltas are expected to be smaller
-than a tile, which the fixed step guarantees.
+**The room edge** holds the player in everywhere except at a doorway. Doorway
+positions come from the maze data: they are the measured spots where the map's
+connector lines meet each room's frame, so a room with a door in the middle of its
+right edge lets you out exactly there and nowhere else.
 
-**Player.** Acceleration/friction, variable jump height, coyote time and jump buffering
-live in `PlayerConfig` — tune the feel in one place.
+**Rooms, not a scrolling level.** `MazeWorld` holds one room at a time, the items
+lying in it, and what the worm is carrying. Stepping through a doorway swaps the
+room and places the worm just inside the doorway it arrived through.
 
-**Enemies.** `EnemyController` implements a bounded ground patrol (turns at walls,
-ledges and the end of its range). Replace it with a maze-graph pathfinder later; the
-`World` only needs something that updates a `KinematicBody`.
+**One button for everything.** With empty hands it picks up the nearest object in
+reach; while carrying, standing over another object swaps the two; and pressing it
+with nothing underfoot uses what is held. Items do nothing yet — that is the next
+step.
 
-## Level format
+**Tiles** are `floor`, `brick`, `foliage`, `water` and `sign`. Only floor is
+walkable.
 
-Levels are JSON files in [Sources/Wriggler/Resources/Levels](./Sources/Wriggler/Resources/Levels)
-and are discovered at runtime, so adding a file adds a menu entry.
+## Maze data
 
-```json
-{
-  "name": "Sewer Maze",
-  "tileset": "default",
-  "rows": [
-    "########",
-    "#..P...#",
-    "#^^^..*#",
-    "########"
-  ]
-}
-```
+`Scripts/build_maze_data.py` writes [maze.json](./Sources/Wriggler/Resources/Maze/maze.json),
+which the game loads at launch: 244 rooms of 30x16 cells, 670 doorways, 50 items,
+and the spawn point on screen `3,13`. It is a *functional* description only —
+characters like `.` and `#` say what a cell is, never what it looks like.
 
-| Glyph | Meaning |
-| --- | --- |
-| `#` | solid wall |
-| `=` | one-way platform |
-| `H` | ladder |
-| `^` | hazard (kills on contact) |
-| `*` | level exit |
-| `P` | player spawn |
-| `e` | crawler spawn |
-| `.` | empty |
+Walkability is derived from the map's colours, which vary by region: gardens have
+green floors and red brick, caves have black floors and red rock. Rather than
+hard-code a palette, each room's floor colour is learned from the cells at its
+doorways — every doorway is walkable by definition, which makes it the one
+reliable sample point. Creatures drawn over the floor are detected as "floor
+colour plus a grey overlay" so they do not punch holes in the walkable area, and
+the floor is then clamped to what is actually reachable from the doorways.
 
-Rows may be ragged; they are padded on the right. Outside the grid every cell reads as
-solid, so levels are implicitly walled in. Glyph spawn markers sit in the cell the body
-*occupies*, i.e. the row directly above the floor it stands on.
+The game draws its own tiles at run time, keyed by tile kind and the room's floor
+colour, so no artwork from the original is bundled.
 
-## Art pipeline
-
-The original is used as **reference only**. Two scripts turn the source material into
-data the port can learn from; both write into `Extracted/`, which is git-ignored because
-the artwork belongs to the game's authors and is not ours to redistribute.
-
-```sh
-python3 -m venv .venv && .venv/bin/pip install -r Scripts/requirements.txt
-make extract PYTHON=.venv/bin/python   # both of the below
-python3 Scripts/extract_tape.py   # loading screen + memory map from the TZX
-python3 Scripts/extract_map.py    # rooms, tile set and actors from the map
-python3 Scripts/extract_links.py  # the room-to-room maze graph
-python3 Scripts/annotate_map.py   # map with every room's index stamped on it
-```
-
-### From the tape
-
-`resources/Wriggler.tzx` is a plain TZX 1.0 with six standard-speed blocks: two loaders
-(273 and 2200 bytes), the 6912-byte loading screen, and a 41768-byte block that fills
-`0x5CD8`–`0xFFFF` exactly. That last block is the game: the first ~26 KB is artwork and
-tables, the top ~15 KB is Z80 code (a linear sweep shows opcode density jumping from
-~8% to ~40% at `0xC4D8`, and it reads `LD A,(0x5C78)` for the frame counter and
-`IN A,(0x7FFE)` for the keyboard). `extract_tape.py` writes the loading screen, the 48K
-memory image, and a block table with the code/artwork split.
-
-### From the map
-
-The community map stitches every room together. Each room is a 256×144 yellow frame on a
-288×176 grid, holding a **30×16 play area of 8×8 cells**, and the white lines between
-frames show which passage leads where. `extract_map.py` finds all 244 rooms, crops each
-one, deduplicates the 1396 distinct 8×8 cells into a 282-tile set, and harvests the
-creatures and props that are drawn in white over the tiles.
-
-What the maze contains:
-
-- **244 rooms** across a 39×38 grid, in colour-coded regions (green, red, blue)
-- **actors** — ants, spiders and snail/worm-like creatures, plus a few larger ones
-- **artefacts** — RIP tombstones, keys, mugs, bottles, skulls and wreaths, i.e. exactly
-  the static and collectable objects a port needs to reimplement
-- **terrain** — brick walls, water, foliage, ladders and gates, all on the 8×8 grid
-
-### The maze graph
+## The maze graph
 
 `extract_links.py` traces the white bands that the map draws between rooms.
 Because the author routed every band through empty space, a band touches at most
@@ -208,23 +162,12 @@ Exit positions are bucketed into thirds of the frame measured from the play area
 which reproduces the reference notation; the raw centres are in the script if a
 boundary needs moving.
 
-These are reference sheets for building new art, not assets to ship.
-
 ## Tests
 
 `make test` runs Swift Testing suites against `WrigglerCore`:
 
-- geometry and `TileMap` queries
-- ASCII/JSON level parsing, including the shipped demo level
-- collision resolution: floors, walls, ceilings, level edges, one-way platforms, ladders
-- player feel: jumping, jump cut, coyote time, ladders, facing
-- world: fixed-step timing, no tunnelling, hazards, exit, restart, enemy patrol
-
-## Roadmap ideas
-
-- TZX asset extraction (map + sprites) replacing the placeholder art
-- Maze-graph pathfinding for enemies; more enemy kinds
-- Sound (Spectrum-style beeper effects), game controller support
-- Lives, score, level progression and a save file
-
-The original 1985 ZX Spectrum game and its artwork belong to their respective authors.
+- maze data: the bundled maze decodes, doorways are symmetric, the spawn is on floor
+- rooms: tile lookup, blocking, out-of-room cells
+- movement: all eight directions, diagonal speed, wall collision, room edge holding
+- doorways: leaving through one arrives at the partner's doorway, no exit where there is no door
+- items: pickup, swap, drop position, reach limit, use, restart

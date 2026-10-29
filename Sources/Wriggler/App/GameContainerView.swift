@@ -2,31 +2,42 @@ import SpriteKit
 import SwiftUI
 import WrigglerCore
 
-/// Hosts the SpriteKit view plus the touch HUD and the pause/game-over overlays.
+/// Hosts the SpriteKit view, the HUD and the touch controls.
 struct GameContainerView: View {
-    let onExit: () -> Void
+    let maze: Maze
 
-    @State private var session: GameSession
+    @State private var session: GameSession?
+    @State private var viewport: CGSize = .zero
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var isFocused: Bool
 
-    init(level: Level, onExit: @escaping () -> Void) {
-        self.onExit = onExit
-        _session = State(initialValue: GameSession(level: level))
-    }
-
     var body: some View {
-        ZStack {
-            SpriteView(scene: session.scene, options: [.ignoresSiblingOrder])
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.zxBlack.ignoresSafeArea()
 
-            GameHUD(session: session, onExit: onExit)
+                if let session {
+                    SpriteView(scene: session.scene, options: [.ignoresSiblingOrder])
+                        .padding(.top, Self.topBarHeight)
+                        .padding(.bottom, Self.controlsHeight)
+                        .padding(.horizontal, Self.sideMargin)
+                        .ignoresSafeArea(edges: .bottom)
 
-            TouchControls(input: session.input)
-                .opacity(session.isPaused || session.status != .playing ? 0 : 1)
+                    GameHUD(session: session)
 
-            if session.status != .playing || session.isPaused {
-                overlay
+                    TouchControls(input: session.input)
+                        .opacity(session.isPaused ? 0 : 1)
+
+                    if session.isPaused {
+                        pausedOverlay(session)
+                    }
+                }
+            }
+            .onAppear { makeSession(viewport: playArea(in: geometry.size)) }
+            .onChange(of: geometry.size) { _, size in
+                let area = playArea(in: size)
+                viewport = area
+                session?.restart(viewport: area)
             }
         }
         .focusable()
@@ -34,99 +45,79 @@ struct GameContainerView: View {
         .focusEffectDisabled()
         .onAppear {
             isFocused = true
-            session.start()
+            session?.start()
         }
-        .onDisappear { session.stop() }
-        .onKeyPress(phases: [.down, .up]) { press in
-            handleKey(press)
-        }
+        .onDisappear { session?.stop() }
+        .onKeyPress(phases: [.down, .up]) { press in handle(press) }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                session.start()
+                session?.start()
             } else {
-                session.stop()
+                session?.stop()
             }
         }
     }
 
-    private var overlay: some View {
+    /// Space left for the maze once the HUD and the on-screen controls are placed.
+    private func playArea(in size: CGSize) -> CGSize {
+        CGSize(
+            width: max(1, size.width - Self.sideMargin * 2),
+            height: max(1, size.height - Self.topBarHeight - Self.controlsHeight)
+        )
+    }
+
+    private func makeSession(viewport size: CGSize) {
+        guard session == nil, size.width > 1, size.height > 1 else { return }
+        let created = GameSession(
+            maze: maze,
+            sceneSize: size,
+            demo: ProcessInfo.processInfo.arguments.contains("-demo")
+        )
+        session = created
+        created.start()
+        isFocused = true
+    }
+
+    static let topBarHeight: CGFloat = 44
+    static let controlsHeight: CGFloat = 108
+    static let sideMargin: CGFloat = 10
+
+    private func pausedOverlay(_ session: GameSession) -> some View {
         ZStack {
             Color.black.opacity(0.72).ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Text(title)
-                    .font(.zx(34, weight: .heavy))
-                    .foregroundStyle(tint)
-
-                Text(subtitle)
-                    .font(.zx(13))
+            VStack(spacing: 16) {
+                Text("PAUSED")
+                    .font(.zx(30, weight: .heavy))
+                    .foregroundStyle(Color.zxYellow)
+                Text("\(session.roomsExplored) rooms explored")
+                    .font(.zx(12))
                     .foregroundStyle(Color.zxDimWhite)
-                    .multilineTextAlignment(.center)
-
-                HStack(spacing: 14) {
-                    if session.isPaused {
-                        MenuButton(title: "RESUME", tint: .zxGreen) { session.setPaused(false) }
-                        MenuButton(title: "EXIT", tint: .zxMagenta, action: onExit)
-                    } else {
-                        MenuButton(title: "RETRY", tint: .zxYellow) { session.restart() }
-                        MenuButton(title: "EXIT", tint: .zxMagenta, action: onExit)
-                    }
+                HStack(spacing: 12) {
+                    MenuButton(title: "RESUME", tint: .zxGreen) { session.setPaused(false) }
+                    MenuButton(title: "RESTART", tint: .zxMagenta) { session.restart() }
                 }
             }
-            .padding(30)
-        }
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.15), value: session.isPaused)
-    }
-
-    private var title: String {
-        if session.isPaused { return "PAUSED" }
-        switch session.status {
-        case .died: return "GAME OVER"
-        case .completed: return "LEVEL CLEAR"
-        case .playing: return ""
         }
     }
 
-    private var subtitle: String {
-        if session.isPaused { return "Take a breath." }
-        switch session.status {
-        case .died: return "The wriggler did not make it."
-        case .completed: return "Time \(formatted(session.elapsedSeconds))"
-        case .playing: return ""
-        }
-    }
-
-    private var tint: Color {
-        if session.isPaused { return .zxYellow }
-        switch session.status {
-        case .died: return .zxMagenta
-        case .completed: return .zxGreen
-        case .playing: return .zxWhite
-        }
-    }
-
-    private func formatted(_ seconds: Double) -> String {
-        String(format: "%05.1fs", seconds)
-    }
-
-    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+    private func handle(_ press: KeyPress) -> KeyPress.Result {
+        guard let session else { return .ignored }
         if let button = InputController.Button(key: press.key) {
             session.input.set(button, pressed: press.phase != .up)
             return .handled
         }
-
-        guard press.phase == .down else { return .ignored }
-
-        switch press.key {
-        case "p", "P", .escape:
-            session.togglePause()
-            return .handled
-        case "r", "R":
-            session.restart()
-            return .handled
-        default:
-            return .ignored
+        if press.phase == .down {
+            switch press.key {
+            case "p", "P", .escape:
+                session.togglePause()
+                return .handled
+            case "r", "R":
+                session.restart()
+                return .handled
+            default:
+                break
+            }
         }
+        return .ignored
     }
 }

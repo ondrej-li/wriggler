@@ -30,11 +30,6 @@ jobs:
       - name: Formatting
         run: swift format lint --recursive --strict Sources Tests
 
-      - name: Placeholder art is reproducible
-        run: |
-          python3 Scripts/generate_placeholder_art.py
-          git diff --exit-code
-
   build-and-test:
     name: Build & Test
     runs-on: macos-26
