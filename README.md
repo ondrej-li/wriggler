@@ -183,8 +183,10 @@ slot encoding the side and which of the three positions on it:
 ```
 
 So `0,0,8 -> 1,0,0` means "the bottom-left exit of the top-left room leads to the
-top-left exit of the room below it". Current result: **244 rooms, 670 exits,
-660 resolved, 10 left as `?`**.
+top-left exit of the room below it". Current result: **244 rooms, 670 exits, all
+670 resolved** — no dangling exits left, and every room is reachable from `0,0`.
+335 links over 244 rooms means 92 loops beyond a spanning tree, so there are
+genuinely multiple routes through the maze.
 
 ### Curated links
 
