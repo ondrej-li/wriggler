@@ -1,0 +1,121 @@
+name: TestFlight
+
+# Archives a signed build and uploads it to TestFlight.
+#
+# Manual runs upload only when asked to; tag pushes always upload. The signing
+# secrets are documented in docs/TESTFLIGHT.md - without them this fails at the
+# archive step, which is expected until the repository is configured.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload to TestFlight after archiving
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: Archive & upload
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_CONNECT_KEY_ID: ${{ secrets.APP_CONNECT_KEY_ID }}
+      APP_CONNECT_ISSUER_ID: ${{ secrets.APP_CONNECT_ISSUER_ID }}
+      SHOULD_UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Write the App Store Connect key
+        run: |
+          set -euo pipefail
+          if [[ -z "${APP_CONNECT_KEY_ID}" ]]; then
+            echo "::error::APP_CONNECT_KEY_ID is not configured - see docs/TESTFLIGHT.md"
+            exit 1
+          fi
+          mkdir -p private_keys
+          echo "${APP_CONNECT_KEY_P8}" | base64 --decode > "private_keys/AuthKey_${APP_CONNECT_KEY_ID}.p8"
+          chmod 600 "private_keys/AuthKey_${APP_CONNECT_KEY_ID}.p8"
+        env:
+          APP_CONNECT_KEY_P8: ${{ secrets.APP_CONNECT_KEY_P8 }}
+
+      - name: Install the distribution certificate
+        run: |
+          set -euo pipefail
+          keychain=/tmp/wriggler-signing.keychain-db
+          password=$(openssl rand -hex 16)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "${BUILD_CERTIFICATE_P12}" | base64 --decode > /tmp/certificate.p12
+          security import /tmp/certificate.p12 -k "$keychain" -P "${BUILD_CERTIFICATE_PASSWORD}" \
+            -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm /tmp/certificate.p12
+        env:
+          BUILD_CERTIFICATE_P12: ${{ secrets.BUILD_CERTIFICATE_P12 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
+
+      - name: Generate the project
+        run: xcodegen generate
+
+      - name: Archive
+        run: |
+          set -euo pipefail
+          xcodebuild -project Wriggler.xcodeproj -scheme Wriggler \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Wriggler.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$PWD/private_keys/AuthKey_${APP_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "${APP_CONNECT_KEY_ID}" \
+            -authenticationKeyIssuerID "${APP_CONNECT_ISSUER_ID}" \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
+            archive
+
+      - name: Export the ipa
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/Wriggler.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist Support/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$PWD/private_keys/AuthKey_${APP_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "${APP_CONNECT_KEY_ID}" \
+            -authenticationKeyIssuerID "${APP_CONNECT_ISSUER_ID}"
+
+      - name: Upload to TestFlight
+        if: ${{ env.SHOULD_UPLOAD == 'true' }}
+        run: |
+          xcrun altool --upload-app \
+            --type ios \
+            --file build/export/Wriggler.ipa \
+            --apiKey "${APP_CONNECT_KEY_ID}" \
+            --apiIssuer "${APP_CONNECT_ISSUER_ID}" \
+            --apiKeyPath "$PWD/private_keys"
+
+      - name: Keep the ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wriggler-ipa
+          path: build/export/*.ipa
+          if-no-files-found: error
+          retention-days: 14
