@@ -160,7 +160,7 @@ final class GameSession {
             act()
         }
 
-        scene.render(world: world, viewport: scene.size)
+        scene.render(world: world, viewport: scene.size, deltaTime: delta)
 
         if noticeFrames > 0 {
             noticeFrames -= 1

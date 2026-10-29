@@ -42,6 +42,33 @@ struct RivalWormTests {
         }
     }
 
+    @Test("A rival does not grind against the room edge")
+    func rivalsDoNotStallAtTheEdge() throws {
+        let url = try #require(
+            Bundle(for: Token.self).url(forResource: "maze", withExtension: "json", subdirectory: "Maze")
+        )
+        let maze = try Maze(definition: try MazeDefinition.load(from: try Data(contentsOf: url)))
+        let spawns = [Vec2(x: 9.5, y: 9), Vec2(x: 14.5, y: 9), Vec2(x: 9.7, y: 6.9)]
+        var world = MazeWorld(
+            maze: maze,
+            rivals: spawns.map { WormSpawn(room: maze.spawnRoom, position: $0) }
+        )
+        var last = spawns
+        var motionless = 0
+        let frames = 3000
+
+        for _ in 0..<frames {
+            world.update(deltaTime: 1.0 / 60.0, input: .none)
+            for (index, rival) in world.rivals.enumerated() where (rival.position - last[index]).length < 0.001 {
+                motionless += 1
+            }
+            last = world.rivals.map { $0.position }
+        }
+
+        // An eighth of the frames would be a rival stuck at the edge for a second.
+        #expect(motionless < frames / 40, "rivals spent \(motionless) frames standing still")
+    }
+
     @Test("The same seed produces the same race")
     func rivalsAreDeterministic() throws {
         let maze = try TestMaze.corridor()
@@ -54,19 +81,35 @@ struct RivalWormTests {
         #expect(first.rivals == second.rivals)
     }
 
-    @Test("A rival walks through a doorway into the next room")
-    func rivalCrossesDoorways() throws {
+    @Test("Rivals do not all wander in lockstep")
+    func rivalsWanderIndependently() throws {
         let maze = try TestMaze.corridor()
-        var world = world(maze, spawns: [Vec2(x: 2, y: 3)])
+        var world = world(maze, spawns: [Vec2(x: 2, y: 2), Vec2(x: 2, y: 2), Vec2(x: 2, y: 2)])
+
+        world.run(frames: 240, input: .none)
+
+        let headings = Set(world.rivals.map { "\($0.heading.x),\($0.heading.y)" })
+        #expect(headings.count > 1, "every rival chose the same path")
+    }
+
+    @Test("Rivals walk through doorways into the next room")
+    func rivalsCrossDoorways() throws {
+        let maze = try TestMaze.corridor()
+        // The door is in the middle of the shared right edge, but a wanderer only
+        // finds it by luck, so send a crowd and let them bump into it.
+        let spawns = (0..<8).map { Vec2(x: 2 + Double($0 % 3), y: 1 + Double($0)) }
+        var world = world(maze, spawns: spawns)
 
         var crossed = false
-        for _ in 0..<1800 where !crossed {
+        for _ in 0..<3600 where !crossed {
             world.update(deltaTime: 1.0 / 60.0, input: .none)
             crossed = world.rivals.contains { $0.room == RoomID("0,1") }
         }
-        #expect(crossed, "the rival never found the doorway")
-        // The worm it left behind is not drawn any more.
-        #expect(world.rivalsInRoom.isEmpty)
+
+        #expect(crossed, "no rival ever found the doorway")
+        // The worm that left is not drawn in the room it left behind.
+        #expect(world.rivalsInRoom.count == world.rivals.filter { $0.room == world.roomID }.count)
+        #expect(world.rivalsInRoom.count < world.rivals.count)
     }
 
     @Test("A fatal fall puts a rival back on its last ledge")
@@ -110,3 +153,5 @@ struct RivalWormTests {
         #expect(world.rivals.count == 3)
     }
 }
+
+private final class Token {}
