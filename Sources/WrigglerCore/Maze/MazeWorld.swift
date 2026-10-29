@@ -33,6 +33,9 @@ public struct MazeWorld: Sendable {
     public private(set) var steps: Int
     public private(set) var lives: Int = 3
     public private(set) var isGameOver = false
+    /// The other worms in the race. They are simulated everywhere, so a worm the
+    /// player has left behind keeps crawling.
+    public private(set) var rivals: [RivalWorm]
     /// Where the worm reappears after a death: the last spot it stood safely.
     /// Respawning at the top of the shaft it just fell down would only repeat
     /// the fall, so this follows solid ground instead of room entrances.
@@ -43,21 +46,39 @@ public struct MazeWorld: Sendable {
     private let movement = MazeMovement()
     /// The state `restart()` returns to.
     private let startingItems: [RoomID: [Item]]
+    private let startingRivals: [WormSpawn]
+    private let startingPlayer: WormSpawn
 
-    public init(maze: Maze) {
-        self.init(maze: maze, items: maze.initialItems)
+    public init(maze: Maze, rivals: [WormSpawn] = []) {
+        self.init(maze: maze, items: maze.initialItems, start: nil, rivals: rivals)
+    }
+
+    public init(maze: Maze, start: WormSpawn?, rivals: [WormSpawn]) {
+        self.init(maze: maze, items: maze.initialItems, start: start, rivals: rivals)
     }
 
     /// Starts with a given set of floor objects, which is what the tests use.
-    public init(maze: Maze, items: [RoomID: [Item]]) {
+    ///
+    /// `start` overrides where the player's worm begins, which the app uses to
+    /// put it on the worm the original screen draws for it.
+    public init(
+        maze: Maze,
+        items: [RoomID: [Item]],
+        start: WormSpawn? = nil,
+        rivals: [WormSpawn] = []
+    ) {
         self.maze = maze
-        self.roomID = maze.spawnRoom
-        self.player = MazePlayer(position: maze.spawnPosition)
+        let origin = start ?? WormSpawn(room: maze.spawnRoom, position: maze.spawnPosition)
+        self.startingPlayer = origin
+        self.roomID = origin.room
+        self.player = MazePlayer(position: origin.position)
         self.startingItems = items
         self.items = items
+        self.startingRivals = rivals
+        self.rivals = rivals.enumerated().map { RivalWorm(id: $0.offset, spawn: $0.element) }
         self.steps = 0
-        self.respawnRoom = maze.spawnRoom
-        self.respawnPosition = maze.spawnPosition
+        self.respawnRoom = origin.room
+        self.respawnPosition = origin.position
     }
 
     public var room: Room {
@@ -69,12 +90,17 @@ public struct MazeWorld: Sendable {
 
     public var itemsInRoom: [Item] { items[roomID] ?? [] }
 
+    /// The rivals the player can see right now.
+    public var rivalsInRoom: [RivalWorm] { rivals.filter { $0.room == roomID } }
+
     /// Advances the simulation and reports anything that happened.
     public mutating func update(deltaTime: Double, input: GameInput) -> [MazeEvent] {
         guard deltaTime > 0 else { return [] }
         var events: [MazeEvent] = []
 
         guard !isGameOver else { return [] }
+
+        advanceRivals(deltaTime: deltaTime)
 
         let (step, exit, fellTooFar) = movement.move(
             player: player,
@@ -103,6 +129,27 @@ public struct MazeWorld: Sendable {
         }
         steps += 1
         return events
+    }
+
+    /// Steps every rival, whether or not the player is in the room to see it.
+    private mutating func advanceRivals(deltaTime: Double) {
+        for index in rivals.indices {
+            let current = rivals[index].room
+            guard let room = maze.rooms[current] else { continue }
+            let exit = rivals[index].advance(
+                deltaTime: deltaTime,
+                room: room,
+                exits: maze.exits(from: current),
+                movement: movement
+            )
+            guard let exit, let destination = maze.rooms[exit.destination] else { continue }
+            let landing = movement.arrivalPosition(
+                for: exit.arrival,
+                room: destination,
+                player: rivals[index].body
+            )
+            rivals[index].enter(exit.destination, at: landing, hasGravity: destination.hasGravity)
+        }
     }
 
     /// Leaves a tombstone where the worm died and spends a life.
@@ -202,14 +249,15 @@ public struct MazeWorld: Sendable {
 
     /// Puts the maze back to its opening state.
     public mutating func restart() {
-        roomID = maze.spawnRoom
-        player = MazePlayer(position: maze.spawnPosition)
+        roomID = startingPlayer.room
+        player = MazePlayer(position: startingPlayer.position)
         items = startingItems
+        rivals = startingRivals.enumerated().map { RivalWorm(id: $0.offset, spawn: $0.element) }
         steps = 0
         lives = 3
         isGameOver = false
-        respawnRoom = maze.spawnRoom
-        respawnPosition = maze.spawnPosition
+        respawnRoom = startingPlayer.room
+        respawnPosition = startingPlayer.position
     }
 }
 

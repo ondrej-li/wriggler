@@ -31,6 +31,17 @@ final class RoomArt {
         case enemy
         case actor
         case prop
+        /// Part of a pair drawing of worms. The worms themselves are moving
+        /// actors, so the drawing is only used as a spawn marker.
+        case worm
+
+        /// False for anything the room must not paint into its background.
+        var isPainted: Bool {
+            switch self {
+            case .enemy, .worm: false
+            case .actor, .prop: true
+            }
+        }
     }
 
     private struct Wire: Decodable {
@@ -89,6 +100,7 @@ final class RoomArt {
     private(set) var categories: [Int: Category] = [:]
     private(set) var tileTextures: [[SKTexture]] = []
     private(set) var spriteTextures: [SKTexture] = []
+    private var spriteImages: [CGImage] = []
     private var layouts: [String: Layout] = [:]
     private var roomTextures: [String: SKTexture] = [:]
     private var tileImages: [CGImage] = []
@@ -110,9 +122,10 @@ final class RoomArt {
         tileImages = Self.sliceTiles(image: tilesImage, wire: wire.tiles)
         // Each atlas tile is one SKTexture, grouped by atlas row for slicing below.
         tileTextures = [tileImages.map(Self.texture)]
-        spriteTextures = wire.sprites.bounds.compactMap { bound in
-            Self.crop(spritesImage, x: bound.x, y: bound.y, width: bound.w, height: bound.h).map(Self.texture)
+        spriteImages = wire.sprites.bounds.compactMap { bound in
+            Self.crop(spritesImage, x: bound.x, y: bound.y, width: bound.w, height: bound.h)
         }
+        spriteTextures = spriteImages.map(Self.texture)
 
         for (key, room) in wire.rooms {
             guard let raw = Data(base64Encoded: room.tiles) else { continue }
@@ -145,6 +158,98 @@ final class RoomArt {
         return spriteTextures[shape]
     }
 
+    // MARK: - Worms
+
+    /// A single worm, lifted out of the pair drawings the rooms use for them.
+    struct WormSprite {
+        let texture: SKTexture
+        /// Size in the art's own pixels.
+        let pixels: CGSize
+    }
+
+    private var wormSprites: [Int: WormSprite] = [:]
+    private var wormCentres: [Int: [CGPoint]] = [:]
+
+    /// The first shape the categories mark as a worm.
+    private var wormShape: Int? {
+        categories.filter { $0.value == .worm }.keys.min()
+    }
+
+    /// The worm sprite. The rooms draw worms in touching pairs, so the pair is
+    /// cut at its horizontal seam and the top worm trimmed out of it.
+    func wormSprite() -> WormSprite? {
+        guard let shape = wormShape else { return nil }
+        return wormSprite(shape)
+    }
+
+    private func wormSprite(_ shape: Int) -> WormSprite? {
+        if let cached = wormSprites[shape] { return cached }
+        guard let image = spriteImage(shape), let halves = wormHalves(of: image),
+            let top = Self.trim(halves.0)
+        else {
+            return nil
+        }
+        let sprite = WormSprite(
+            texture: Self.texture(top),
+            pixels: CGSize(width: top.width, height: top.height)
+        )
+        wormSprites[shape] = sprite
+        return sprite
+    }
+
+    /// Where the worms a room draws stand, in tiles from its top-left corner.
+    func wormSpawns(for room: GridPoint) -> [Vec2] {
+        guard let layout = layout(for: room) else { return [] }
+        var spawns: [Vec2] = []
+        for marker in layout.sprites where category(of: marker.shape) == .worm {
+            for centre in wormCentres(marker.shape) {
+                spawns.append(
+                    Vec2(
+                        x: marker.x + Double(centre.x) * marker.width,
+                        y: marker.y + Double(centre.y) * marker.height
+                    )
+                )
+            }
+        }
+        return spawns
+    }
+
+    /// Centre of each worm inside a pair drawing, as a fraction of its box.
+    private func wormCentres(_ shape: Int) -> [CGPoint] {
+        if let cached = wormCentres[shape] { return cached }
+        guard let image = spriteImage(shape), let halves = wormHalves(of: image) else { return [] }
+        let halfHeight = image.height / 2
+        var centres: [CGPoint] = []
+        for (index, half) in [halves.0, halves.1].enumerated() {
+            guard let bounds = Self.alphaBounds(half) else { continue }
+            centres.append(
+                CGPoint(
+                    x: (bounds.midX) / CGFloat(image.width),
+                    y: (CGFloat(index * halfHeight) + bounds.midY) / CGFloat(image.height)
+                )
+            )
+        }
+        wormCentres[shape] = centres
+        return centres
+    }
+
+    private func spriteImage(_ shape: Int) -> CGImage? {
+        guard shape >= 0, shape < spriteImages.count else { return nil }
+        return spriteImages[shape]
+    }
+
+    private func wormHalves(of image: CGImage) -> (CGImage, CGImage)? {
+        let halfHeight = image.height / 2
+        guard
+            let top = Self.crop(image, x: 0, y: 0, width: image.width, height: halfHeight),
+            let bottom = Self.crop(
+                image, x: 0, y: halfHeight, width: image.width, height: image.height - halfHeight)
+        else {
+            return nil
+        }
+        return (top, bottom)
+    }
+
     /// The whole room's tiles composited into one texture, built once per room.
     func backgroundTexture(for room: GridPoint) -> SKTexture? {
         let key = "\(room.y),\(room.x)"
@@ -156,6 +261,10 @@ final class RoomArt {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
         let image = renderer.image { context in
             let ctx = context.cgContext
+            // UIKit hands us a y-down context, but CGImage drawing expects y-up, so
+            // without this flip every tile lands upside down.
+            ctx.translateBy(x: 0, y: CGFloat(height))
+            ctx.scaleBy(x: 1, y: -1)
             for row in 0..<rows {
                 for column in 0..<columns {
                     let index = Int(layout.tiles[row * columns + column])
@@ -164,7 +273,7 @@ final class RoomArt {
                         tileImages[index],
                         in: CGRect(
                             x: column * cellPixels,
-                            y: row * cellPixels,
+                            y: (rows - row - 1) * cellPixels,
                             width: cellPixels,
                             height: cellPixels
                         )
@@ -214,6 +323,55 @@ final class RoomArt {
 
     private static func crop(_ image: CGImage, x: Int, y: Int, width: Int, height: Int) -> CGImage? {
         image.cropping(to: CGRect(x: x, y: y, width: width, height: height))
+    }
+
+    /// Bounding box of the opaque pixels, in the image's own top-left space.
+    private static func alphaBounds(_ image: CGImage) -> CGRect? {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard
+            let context = CGContext(
+                data: &pixels,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else {
+            return nil
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+        for y in 0..<height {
+            for x in 0..<width where pixels[(y * width + x) * 4 + 3] > 0 {
+                minX = min(minX, x)
+                maxX = max(maxX, x)
+                minY = min(minY, y)
+                maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX else { return nil }
+        // The buffer's first row is the image's bottom row, but cropping counts
+        // from the top, so flip the vertical extent.
+        return CGRect(x: minX, y: height - 1 - maxY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }
+
+    private static func trim(_ image: CGImage) -> CGImage? {
+        guard let bounds = alphaBounds(image) else { return nil }
+        return crop(
+            image,
+            x: Int(bounds.minX),
+            y: Int(bounds.minY),
+            width: Int(bounds.width),
+            height: Int(bounds.height)
+        )
     }
 
     private static func texture(_ image: CGImage) -> SKTexture {

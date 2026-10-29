@@ -125,6 +125,15 @@ reach; while carrying, standing over another object swaps the two; and pressing 
 with nothing underfoot uses what is held. Items do nothing yet — that is the next
 step.
 
+**Four worms.** The player drives one worm; three rivals crawl the maze on their
+own, so the race continues whether or not you are in the room to watch it. A rival
+is an ordinary worm — same body, same collision, same gravity — steered by a wander
+policy instead of the touch controls: it picks a direction, keeps it for a moment,
+turns when it feels a wall, and crosses doorways just like the player. Rivals never
+die; a fatal fall drops them back on the last ledge they stood on. On screen the
+worms are indistinguishable, exactly as in the original: yours is the one that
+answers the controls.
+
 **Falls and lives.** A fall longer than one screen kills the worm. It leaves a RIP
 tombstone where it died, costs a life, and the worm reappears on the last patch of
 solid ground it stood on — respawning at the top of the shaft it just fell down
@@ -148,9 +157,16 @@ every cell into "a tile I have seen before" or "something drawn on top":
 
 Sprites are categorised in `RoomArt/sprite-categories.json`; **anything unlisted is
 treated as an enemy and not drawn**, which is what keeps the ants out of the start
-room while the four worms, the bug with the starting gun and the lettering stay.
-Screens get classified as they are reviewed, so a room may look emptier than the
-original until its sprites are listed.
+room while the bug with the starting gun and the lettering stay. Screens get
+classified as they are reviewed, so a room may look emptier than the original until
+its sprites are listed.
+
+**The worms are not decorations.** The original screens draw them in touching pairs,
+so those shapes are categorised as `worm`: never painted into the background, but
+used as spawn markers. The pair is cut at its horizontal seam, the top worm trimmed
+out of it, and the result is the single sprite that every worm in the game — the
+player's and the rivals' — is drawn from. Facing is the only variation: the sprite is
+mirrored when the worm crawls left.
 
 The artwork lives in [Sources/Wriggler/Resources/RoomArt](./Sources/Wriggler/Resources/RoomArt)
 — a tile atlas, a sprite atlas and the per-room layouts. It is reconstructed from the
