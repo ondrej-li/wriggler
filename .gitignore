@@ -6,6 +6,9 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 
+*.ipa
+*.xcarchive
+
 # macOS
 .DS_Store
 

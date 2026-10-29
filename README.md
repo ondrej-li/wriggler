@@ -39,15 +39,34 @@ could later run off the main thread or in a headless balance harness.
 ## Build and run
 
 ```sh
-make generate   # writes Wriggler.xcodeproj from project.yml
+make open       # generate the Xcode project and open it
+make generate   # just write Wriggler.xcodeproj from project.yml
 make build      # build for the simulator
 make test       # run the core test suite
 make lint       # check formatting with swift-format
 make run        # build, install and launch on a simulator
 ```
 
-`Wriggler.xcodeproj` is generated and therefore not committed — run `make generate`
-after pulling, or open `project.yml` and let your tooling regenerate it.
+`make open` is the quickest way in: it regenerates the project and opens it in
+Xcode, where the `Wriggler` scheme is ready to run. Pick a simulator and press
+run, or choose your device after setting a team (below).
+
+`Wriggler.xcodeproj` is generated and therefore not committed — run `make open`
+after pulling and the project appears, correctly configured.
+
+**Running on a device** needs your team ID once:
+
+```sh
+make open DEVELOPMENT_TEAM=ABCDE12345
+```
+
+Export `DEVELOPMENT_TEAM` in your shell profile to have it applied on every
+regeneration. Without it the simulator works fine and Xcode only asks for a team
+when you target a device.
+
+**Shipping to TestFlight** is `make archive` then `make upload`; see
+[docs/TESTFLIGHT.md](./docs/TESTFLIGHT.md) for the one-time App Store Connect setup
+and the CI workflow.
 
 Launch flags while iterating:
 

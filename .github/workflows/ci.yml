@@ -30,6 +30,25 @@ jobs:
       - name: Formatting
         run: swift format lint --recursive --strict Sources Tests
 
+      - name: App Store packaging checks
+        run: |
+          set -euo pipefail
+          plutil -lint Sources/Wriggler/Resources/Info.plist
+          plutil -lint Sources/Wriggler/Resources/PrivacyInfo.xcprivacy
+          plutil -lint Support/ExportOptions.plist
+          python3 - <<'PY'
+          import struct
+          path = "Sources/Wriggler/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
+          header = open(path, "rb").read(33)
+          assert header[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+          width, height = struct.unpack(">II", header[16:24])
+          colour_type = header[25]
+          assert (width, height) == (1024, 1024), f"icon is {width}x{height}, expected 1024x1024"
+          # 2 = truecolour, 6 = truecolour with alpha, which App Store Connect rejects.
+          assert colour_type == 2, f"icon colour type {colour_type}: alpha channel present"
+          print("icon ok: 1024x1024, no alpha")
+          PY
+
   build-and-test:
     name: Build & Test
     runs-on: macos-26

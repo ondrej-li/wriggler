@@ -43,11 +43,15 @@ targets:
           - "Resources/Info.plist"
       - path: Sources/Wriggler/Resources/Maze
         type: folder
+      - path: Sources/Wriggler/Resources/PrivacyInfo.xcprivacy
     dependencies:
       - target: WrigglerCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cz.ondrejli.wriggler
+        # Device builds need a team; `make generate DEVELOPMENT_TEAM=ABCDE12345`.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
         PRODUCT_NAME: Wriggler
         INFOPLIST_FILE: Sources/Wriggler/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
