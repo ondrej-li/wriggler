@@ -66,14 +66,14 @@ struct ItemTests {
 
     @Test("Pressing the button with something in hand and nothing underfoot uses it")
     func useWhenEmptyHandedTarget() throws {
-        var world = try worldWithItems([(.tombstone, Vec2(x: 2.2, y: 3))])
+        var world = try worldWithItems([(.skull, Vec2(x: 2.2, y: 3))])
         _ = world.interact()
-        #expect(world.player.carried?.kind == .tombstone)
+        #expect(world.player.carried?.kind == .skull)
 
         // Walk away from where it was, then press again.
         _ = world.run(frames: 40, input: GameInput(moveX: 1))
-        #expect(world.interact() == .used(.tombstone))
-        #expect(world.player.carried?.kind == .tombstone, "using does not consume the object yet")
+        #expect(world.interact() == .used(.skull))
+        #expect(world.player.carried?.kind == .skull, "using does not consume the object yet")
     }
 
     @Test("Restart puts the items back")

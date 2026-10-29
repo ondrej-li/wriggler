@@ -59,6 +59,9 @@ xcrun simctl launch booted cz.ondrejli.wriggler -demo
 room, step back to the doorway and walk through it. Handy for checking that
 movement, pickup and room changes still work after a refactor.
 
+`-room 13,19` starts in the given room instead of the beginning, which is how the
+underground rooms are checked in isolation.
+
 ## Controls
 
 | Action | Touch | Hardware keyboard |
@@ -77,9 +80,17 @@ The player is a worm let loose in a 244-room maze. One room fills the screen;
 walk out through a doorway and you arrive in the connected room, at the matching
 doorway.
 
-**Movement** is eight-directional and free: no gravity, no jumping. Diagonal input
-is normalised so it is not faster than walking straight. Collision is per-axis
-against the room's tile grid, so the worm slides along walls instead of sticking.
+**Two kinds of ground.** The map divides cleanly: 100 garden rooms with green
+floors and 144 underground rooms with black floors. They play differently.
+
+- **Gardens** — the worm crawls over the floor in all eight directions, with no
+  gravity. Diagonal input is normalised so it is not faster than walking straight.
+- **Underground** — gravity applies. The worm walks left and right, cannot crawl
+  up, and falls wherever there is no floor beneath it. Shafts drop it through
+  doorways into the rooms below, gathering speed as it goes.
+
+Collision is per-axis against the room's tile grid, so the worm slides along walls
+instead of sticking.
 
 **The room edge** holds the player in everywhere except at a doorway. Doorway
 positions come from the maze data: they are the measured spots where the map's
@@ -94,6 +105,11 @@ room and places the worm just inside the doorway it arrived through.
 reach; while carrying, standing over another object swaps the two; and pressing it
 with nothing underfoot uses what is held. Items do nothing yet — that is the next
 step.
+
+**Falls and lives.** A fall longer than one screen kills the worm. It leaves a RIP
+tombstone where it died, costs a life, and the worm reappears on the last patch of
+solid ground it stood on — respawning at the top of the shaft it just fell down
+would only repeat the fall. Three lives; the third death ends the run.
 
 **Tiles** are `floor`, `brick`, `foliage`, `water` and `sign`. Only floor is
 walkable.
@@ -170,4 +186,6 @@ boundary needs moving.
 - rooms: tile lookup, blocking, out-of-room cells
 - movement: all eight directions, diagonal speed, wall collision, room edge holding
 - doorways: leaving through one arrives at the partner's doorway, no exit where there is no door
+- gravity: no fall on the surface, falling and landing underground, no crawling up, sideways crawling
+- falls: a drop over one screen is fatal, leaves a tombstone, costs a life, respawns on solid ground, three deaths end the run
 - items: pickup, swap, drop position, reach limit, use, restart
