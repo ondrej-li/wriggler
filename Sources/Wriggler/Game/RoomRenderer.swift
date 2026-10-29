@@ -16,6 +16,8 @@ final class RoomRenderer {
     private var decoration: [SKSpriteNode] = []
     private var itemSprites: [Int: SKSpriteNode] = [:]
     private var wormSprites: [Int: SKSpriteNode] = [:]
+    private var crawls: [Int: WormCrawl] = [:]
+    private var lastPositions: [Int: Vec2] = [:]
 
     /// The player is drawn from the same atlas as the rivals, so it gets an id
     /// outside the range the rivals use.
@@ -35,13 +37,13 @@ final class RoomRenderer {
         parent.addChild(actorNode)
     }
 
-    func sync(world: MazeWorld) {
+    func sync(world: MazeWorld, deltaTime: Double = 0) {
         if renderedRoom != world.roomID {
             buildRoom(world.room)
             renderedRoom = world.roomID
         }
         syncItems(world)
-        syncWorms(world)
+        syncWorms(world, deltaTime: deltaTime)
     }
 
     // MARK: - Room
@@ -127,7 +129,7 @@ final class RoomRenderer {
     }
 
     /// Places the player's worm and every rival that is in this room.
-    private func syncWorms(_ world: MazeWorld) {
+    private func syncWorms(_ world: MazeWorld, deltaTime: Double) {
         guard let art = art.wormSprite() else { return }
         let scale = cellPixels / CGFloat(RoomArt.shared.cellPixels)
         let size = CGSize(
@@ -145,6 +147,8 @@ final class RoomRenderer {
         for (id, sprite) in wormSprites where worms[id] == nil {
             sprite.removeFromParent()
             wormSprites.removeValue(forKey: id)
+            crawls.removeValue(forKey: id)
+            lastPositions.removeValue(forKey: id)
         }
 
         for (id, worm) in worms {
@@ -158,9 +162,36 @@ final class RoomRenderer {
                     wormSprites[id] = node
                     return node
                 }()
-            sprite.position = scenePoint(worm.position, roomHeight: world.room.rows)
-            sprite.xScale = worm.facing == .left ? -1 : 1
+            var crawl = crawls[id] ?? WormCrawl()
+            crawl.advance(
+                distance: (worm.position - (lastPositions[id] ?? worm.position)).length,
+                deltaTime: deltaTime
+            )
+            crawls[id] = crawl
+            lastPositions[id] = worm.position
+
+            // Bunched up the worm is shorter, so slide it forward by the amount it
+            // lost behind its head: that end stays planted and the tail catches up,
+            // the way an inchworm walks.
+            let sign: CGFloat = worm.facing == .left ? -1 : 1
+            // Snap the squash to whole source pixels, so the crawl cycles through
+            // a handful of crisp frames instead of smearing every edge.
+            let stretch = quantized(crawl.stretch, pixels: art.pixels.width)
+            let thickness = quantized(crawl.thickness, pixels: art.pixels.height)
+            let anchor = scenePoint(worm.position, roomHeight: world.room.rows)
+            sprite.position = CGPoint(
+                x: anchor.x + sign * size.width * (1 - stretch) / 2,
+                y: anchor.y
+            )
+            sprite.xScale = sign * stretch
+            sprite.yScale = thickness
         }
+    }
+
+    /// Rounds a scale so the sprite covers a whole number of its own pixels.
+    private func quantized(_ scale: Double, pixels: Double) -> CGFloat {
+        guard pixels > 0 else { return CGFloat(scale) }
+        return CGFloat((scale * pixels).rounded() / pixels)
     }
 
     /// Snaps to whole virtual pixels so the upscale stays crisp.

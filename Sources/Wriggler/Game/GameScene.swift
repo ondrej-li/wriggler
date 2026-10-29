@@ -32,9 +32,9 @@ final class GameScene: SKScene {
         layout(viewport: viewport, room: room)
     }
 
-    func render(world: MazeWorld, viewport: CGSize) {
+    func render(world: MazeWorld, viewport: CGSize, deltaTime: Double = 0) {
         layout(viewport: viewport, room: world.room)
-        renderer.sync(world: world)
+        renderer.sync(world: world, deltaTime: deltaTime)
     }
 
     private func layout(viewport: CGSize, room: Room) {

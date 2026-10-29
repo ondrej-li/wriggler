@@ -22,13 +22,16 @@ public struct RivalWorm: Sendable, Equatable {
     public private(set) var body: MazePlayer
 
     /// Direction of travel. Zero means the worm has stopped.
-    private var heading: Vec2
+    public private(set) var heading: Vec2
     /// Seconds left before it picks a new direction.
     private var decisionDelay: Double
     private var seed: UInt64
     /// The last spot it stood on solid ground. A fatal fall puts it back here
     /// instead of killing it, so the race never loses a competitor for good.
     private var resting: WormSpawn
+    /// A direction that got the worm nowhere - the room edge, or a wall its feeler
+    /// could not see - so it stops shoving at it.
+    private var wallHeading: Vec2?
 
     /// Rivals crawl a little slower than the player, so the race stays winnable.
     private static let rivalSpeed: Double = MazePlayer.defaultWalkSpeed * 0.65
@@ -40,13 +43,18 @@ public struct RivalWorm: Sendable, Equatable {
     /// How often a rival that could keep going actually does.
     private static let keepGoingChance: Double = 0.6
 
-    public init(id: Int, spawn: WormSpawn, seed: UInt64 = 0x2545_F491_4F6C_DD1D) {
+    /// - Parameter seed: the wander sequence. Each worm gets its own by default,
+    ///   so rivals never move in lockstep.
+    public init(id: Int, spawn: WormSpawn, seed: UInt64? = nil) {
         self.id = id
         self.room = spawn.room
         self.body = MazePlayer(position: spawn.position, speed: Self.rivalSpeed)
         self.heading = Vec2(x: 1, y: 0)
         self.decisionDelay = 0
-        self.seed = seed
+        self.seed =
+            seed
+            ?? 0x2545_F491_4F6C_DD1D
+            &+ UInt64(truncatingIfNeeded: id) &* 0x9E37_79B9_7F4A_7C15
         self.resting = spawn
     }
 
@@ -68,6 +76,7 @@ public struct RivalWorm: Sendable, Equatable {
             decisionDelay = Self.minDecision + nextRandom() * (Self.maxDecision - Self.minDecision)
         }
 
+        let before = body.position
         let input = GameInput(moveX: heading.x, moveY: heading.y)
         let (step, exit, fellTooFar) = movement.move(
             player: body,
@@ -88,6 +97,17 @@ public struct RivalWorm: Sendable, Equatable {
             body.fallDistance = 0
             heading = Vec2(x: 0, y: 0)
             return nil
+        }
+
+        // Pushing at the room edge leaves the worm where it was: the edge is not a
+        // blocked tile, so the feeler cannot see it. Turn away instead of grinding
+        // against it until the timer runs out.
+        if (body.position - before).length < 0.001, heading != Vec2(x: 0, y: 0) {
+            wallHeading = heading
+            chooseHeading(in: room)
+            decisionDelay = Self.minDecision + nextRandom() * (Self.maxDecision - Self.minDecision)
+        } else if (body.position - before).length >= 0.001 {
+            wallHeading = nil
         }
 
         if !room.hasGravity || body.isOnGround {
@@ -115,7 +135,7 @@ public struct RivalWorm: Sendable, Equatable {
             room.hasGravity
             ? [Vec2(x: -1, y: 0), Vec2(x: 1, y: 0)]
             : Self.surfaceDirections
-        let open = candidates.filter { !blocked(ahead: $0, in: room) }
+        let open = candidates.filter { $0 != wallHeading && !blocked(ahead: $0, in: room) }
         guard !open.isEmpty else {
             heading = Vec2(x: 0, y: 0)
             return

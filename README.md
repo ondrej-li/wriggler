@@ -134,6 +134,14 @@ die; a fatal fall drops them back on the last ledge they stood on. On screen the
 worms are indistinguishable, exactly as in the original: yours is the one that
 answers the controls.
 
+**They crawl, they do not slide.** A worm bunches up and stretches out after its
+head as it travels, easing in and out of the squirm and stopping dead when it stops.
+The cycle is driven by distance covered rather than by the clock, so it keeps step
+with the worm's real speed and survives any frame rate; a hop through a doorway is
+not a crawl and is ignored. `WormCrawl` holds the maths, and the renderer snaps the
+squash to whole source pixels so every frame stays crisp pixel art instead of a
+smeared one.
+
 **Falls and lives.** A fall longer than one screen kills the worm. It leaves a RIP
 tombstone where it died, costs a life, and the worm reappears on the last patch of
 solid ground it stood on — respawning at the top of the shaft it just fell down
