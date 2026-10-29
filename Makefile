@@ -88,11 +88,16 @@ icon:
 maze:
 	$(PYTHON) Scripts/build_maze_data.py
 
+# Rebuilds the room artwork the game draws: tile atlas, sprite atlas, layouts.
+roomart:
+	$(PYTHON) Scripts/build_room_art.py
+
 # Reference extraction from the original game; writes to git-ignored Extracted/.
 extract:
 	$(PYTHON) Scripts/extract_tape.py
 	$(PYTHON) Scripts/extract_map.py
 	$(PYTHON) Scripts/extract_links.py
+	$(PYTHON) Scripts/build_room_art.py
 
 # Room-index labels burned onto the map; writes into resources/.
 annotate-map: extract
@@ -101,4 +106,4 @@ annotate-map: extract
 clean:
 	rm -rf build Wriggler.xcodeproj
 
-.PHONY: generate open build test lint run archive upload upload-xcode art icon maze extract annotate-map clean
+.PHONY: generate open build test lint run archive upload upload-xcode art icon maze roomart extract annotate-map clean

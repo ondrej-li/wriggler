@@ -43,6 +43,8 @@ targets:
           - "Resources/Info.plist"
       - path: Sources/Wriggler/Resources/Maze
         type: folder
+      - path: Sources/Wriggler/Resources/RoomArt
+        type: folder
       - path: Sources/Wriggler/Resources/PrivacyInfo.xcprivacy
     dependencies:
       - target: WrigglerCore

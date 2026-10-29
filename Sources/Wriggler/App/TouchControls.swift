@@ -7,7 +7,7 @@ import SwiftUI
 struct TouchControls: View {
     let input: InputController
 
-    private let pad: CGFloat = 46
+    private let pad: CGFloat = 30
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,20 +27,20 @@ struct TouchControls: View {
     }
 
     private var directionPad: some View {
-        VStack(spacing: 4) {
-            HoldButton(label: "▲", tint: .zxYellow, width: pad, height: pad, font: .zx(16, weight: .bold)) { pressed in
+        VStack(spacing: 3) {
+            HoldButton(label: "▲", tint: .zxYellow, width: pad, height: pad, font: .zx(13, weight: .bold)) { pressed in
                 input.set(.up, pressed: pressed)
             }
-            HStack(spacing: 4) {
-                HoldButton(label: "◀", tint: .zxYellow, width: pad, height: pad, font: .zx(16, weight: .bold)) {
+            HStack(spacing: 3) {
+                HoldButton(label: "◀", tint: .zxYellow, width: pad, height: pad, font: .zx(13, weight: .bold)) {
                     pressed in
                     input.set(.left, pressed: pressed)
                 }
-                HoldButton(label: "▼", tint: .zxYellow, width: pad, height: pad, font: .zx(16, weight: .bold)) {
+                HoldButton(label: "▼", tint: .zxYellow, width: pad, height: pad, font: .zx(13, weight: .bold)) {
                     pressed in
                     input.set(.down, pressed: pressed)
                 }
-                HoldButton(label: "▶", tint: .zxYellow, width: pad, height: pad, font: .zx(16, weight: .bold)) {
+                HoldButton(label: "▶", tint: .zxYellow, width: pad, height: pad, font: .zx(13, weight: .bold)) {
                     pressed in
                     input.set(.right, pressed: pressed)
                 }

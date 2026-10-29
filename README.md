@@ -4,10 +4,8 @@
 
 An iOS port of the ZX Spectrum game **Wriggler** — a worm loose in a 244-room maze.
 
-The Spectrum original is source material only: the maze layout, its doorways and the
-position of the pickups were extracted from the map, but the game itself — movement,
-collision, items — is a new implementation. Room art is drawn at run time, so no
-original artwork is bundled.
+The maze layout, its doorways, the pickups and the room artwork are reconstructed from
+the map; the game itself — movement, collision, falls, items — is a new implementation.
 
 Playable now: eight-directional movement with tile collision, doorways between all
 244 rooms, and picking up, carrying and swapping objects. Next up is giving the
@@ -134,6 +132,31 @@ would only repeat the fall. Three lives; the third death ends the run.
 
 **Tiles** are `floor`, `brick`, `foliage`, `water` and `sign`. Only floor is
 walkable.
+
+## Room artwork
+
+Screens are rebuilt from the original artwork rather than approximated. The map is
+drawn from a small set of repeating 8x8 tiles, so `Scripts/build_room_art.py` sorts
+every cell into "a tile I have seen before" or "something drawn on top":
+
+- **331 tiles** reproduce **98.9%** of all 117,120 cells exactly, and are packed
+  into a single atlas.
+- Whatever covers the rest — creatures, flowers, the "START" lettering — comes back
+  as a sprite with transparency, so the game can choose what to draw.
+- Each room is composited once into a texture, then drawn at an integer scale with
+  nearest-neighbour filtering: upscaled, never resampled down.
+
+Sprites are categorised in `RoomArt/sprite-categories.json`; **anything unlisted is
+treated as an enemy and not drawn**, which is what keeps the ants out of the start
+room while the four worms, the bug with the starting gun and the lettering stay.
+Screens get classified as they are reviewed, so a room may look emptier than the
+original until its sprites are listed.
+
+The artwork lives in [Sources/Wriggler/Resources/RoomArt](./Sources/Wriggler/Resources/RoomArt)
+— a tile atlas, a sprite atlas and the per-room layouts. It is reconstructed from the
+original map and remains the original authors' work; swap that folder to re-skin the
+game. `make roomart` rebuilds it, and the game falls back to flat procedural tiles if
+the folder is missing.
 
 ## Maze data
 
