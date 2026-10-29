@@ -54,19 +54,21 @@ run, or choose your device after setting a team (below).
 `Wriggler.xcodeproj` is generated and therefore not committed — run `make open`
 after pulling and the project appears, correctly configured.
 
-**Running on a device** needs your team ID once:
+**Running on a device** needs your team ID. Drop it in `local.mk` (not committed)
+and every `make` target picks it up:
 
-```sh
-make open DEVELOPMENT_TEAM=ABCDE12345
+```make
+# local.mk
+DEVELOPMENT_TEAM := ABCDE12345
 ```
 
-Export `DEVELOPMENT_TEAM` in your shell profile to have it applied on every
-regeneration. Without it the simulator works fine and Xcode only asks for a team
-when you target a device.
+or pass it per invocation: `make open DEVELOPMENT_TEAM=ABCDE12345`. Without it the
+simulator works fine and Xcode only asks for a team when you target a device.
 
-**Shipping to TestFlight** is `make archive` then `make upload`; see
-[docs/TESTFLIGHT.md](./docs/TESTFLIGHT.md) for the one-time App Store Connect setup
-and the CI workflow.
+**Shipping to TestFlight** is `make upload-xcode` (one step, uses the account
+signed in to Xcode) or `make archive` then `make upload` (needs an App Store Connect
+API key). See [docs/TESTFLIGHT.md](./docs/TESTFLIGHT.md) for the setup and the CI
+workflow.
 
 Launch flags while iterating:
 

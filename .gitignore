@@ -9,6 +9,9 @@ xcuserdata/
 *.ipa
 *.xcarchive
 
+# Local machine settings (team ID, device)
+local.mk
+
 # macOS
 .DS_Store
 
