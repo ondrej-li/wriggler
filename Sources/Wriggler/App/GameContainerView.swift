@@ -19,9 +19,7 @@ struct GameContainerView: View {
                 if let session {
                     SpriteView(scene: session.scene, options: [.ignoresSiblingOrder])
                         .padding(.top, Self.topBarHeight)
-                        .padding(.bottom, Self.controlsHeight)
                         .padding(.horizontal, Self.sideMargin)
-                        .ignoresSafeArea(edges: .bottom)
 
                     GameHUD(session: session)
 
@@ -64,7 +62,7 @@ struct GameContainerView: View {
     private func playArea(in size: CGSize) -> CGSize {
         CGSize(
             width: max(1, size.width - Self.sideMargin * 2),
-            height: max(1, size.height - Self.topBarHeight - Self.controlsHeight)
+            height: max(1, size.height - Self.topBarHeight)
         )
     }
 
@@ -90,9 +88,8 @@ struct GameContainerView: View {
         return RoomID(arguments[index + 1])
     }
 
-    static let topBarHeight: CGFloat = 44
-    static let controlsHeight: CGFloat = 108
-    static let sideMargin: CGFloat = 10
+    static let topBarHeight: CGFloat = 38
+    static let sideMargin: CGFloat = 4
 
     private func gameOverOverlay(_ session: GameSession) -> some View {
         ZStack {
