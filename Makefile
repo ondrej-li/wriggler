@@ -6,6 +6,9 @@ DEVICE ?= iPhone 18 Pro
 # Set it once in your shell profile to keep it across regenerations.
 DEVELOPMENT_TEAM ?=
 export DEVELOPMENT_TEAM
+
+# Optional local overrides (team ID, device name). Not committed.
+-include local.mk
 DEVELOPER_DIR ?= $(shell xcode-select -p 2>/dev/null | grep -q "Xcode.app" && xcode-select -p || echo /Applications/Xcode.app/Contents/Developer)
 export DEVELOPER_DIR
 
@@ -55,10 +58,26 @@ archive: generate
 		-allowProvisioningUpdates
 	@echo "exported to $(EXPORT_DIR)"
 
-# Uploads the exported build to TestFlight. Needs App Store Connect API key
-# credentials, see docs/TESTFLIGHT.md.
+# Uploads the exported build to TestFlight with an App Store Connect API key,
+# see docs/TESTFLIGHT.md.
 upload:
 	./Scripts/upload-testflight.sh
+
+# Builds and uploads in one step using the account signed in to Xcode, so no API
+# key is needed. Handy locally; CI has no Xcode account and uses `make upload`.
+upload-xcode: generate
+	xcodebuild -project Wriggler.xcodeproj -scheme Wriggler \
+		-configuration Release \
+		-destination 'generic/platform=iOS' \
+		-archivePath $(ARCHIVE) \
+		-allowProvisioningUpdates \
+		$(if $(DEVELOPMENT_TEAM),DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM),) \
+		$(if $(BUILD_NUMBER),CURRENT_PROJECT_VERSION=$(BUILD_NUMBER),) \
+		archive
+	xcodebuild -exportArchive \
+		-archivePath $(ARCHIVE) \
+		-exportOptionsPlist Support/ExportOptions-upload.plist \
+		-allowProvisioningUpdates
 
 art: icon
 
@@ -82,4 +101,4 @@ annotate-map: extract
 clean:
 	rm -rf build Wriggler.xcodeproj
 
-.PHONY: generate open build test lint run archive upload art icon maze extract annotate-map clean
+.PHONY: generate open build test lint run archive upload upload-xcode art icon maze extract annotate-map clean

@@ -5,16 +5,12 @@ three one-time things on your side, then it is two commands.
 
 ## One-time setup
 
-1. **A development team.** Sign in to Xcode with your Apple ID, then note the
-   team ID from *Xcode > Settings > Accounts*. Pass it to the generator so device
-   builds and archives sign automatically:
+1. **A development team.** Already configured for this checkout: `local.mk` (not
+   committed) holds `DEVELOPMENT_TEAM := B592D69P29`, so `make open`, `make build`
+   and `make archive` all sign for the right team without extra flags.
 
-   ```sh
-   make generate DEVELOPMENT_TEAM=ABCDE12345
-   ```
-
-   Set it once in your shell profile if you prefer:
-   `export DEVELOPMENT_TEAM=ABCDE12345`.
+   On another machine, either create `local.mk` with the same line or pass it in:
+   `make generate DEVELOPMENT_TEAM=ABCDE12345`.
 
 2. **An App Store Connect app record** for the bundle identifier
    `cz.ondrejli.wriggler` (*Apps > + > New App*, platform iOS). TestFlight uploads
@@ -35,10 +31,22 @@ three one-time things on your side, then it is two commands.
 
 ## Ship a build
 
+Two routes. The first needs no API key at all:
+
+```sh
+make upload-xcode            # archive, export and upload via the Xcode account
+```
+
+The second separates the steps and is the one CI uses:
+
 ```sh
 make archive                 # signed .xcarchive, then .ipa in build/export
 make upload                  # pushes the .ipa to TestFlight
 ```
+
+`make upload-xcode` uses the Apple ID signed in to Xcode, so it only works on a
+machine where that account exists. `make upload` needs the App Store Connect API
+key described above.
 
 `make archive` accepts overrides for CI:
 
@@ -73,14 +81,24 @@ takes a short while to finish processing before testers can install it.
 `.github/workflows/testflight.yml` archives and uploads on demand, or on a `v*`
 tag. It needs these repository secrets:
 
-| Secret | Contents |
-| --- | --- |
-| `APPLE_TEAM_ID` | your team ID |
-| `APP_CONNECT_KEY_ID` | key ID |
-| `APP_CONNECT_ISSUER_ID` | issuer UUID |
-| `APP_CONNECT_KEY_P8` | the whole `.p8` file, base64 encoded |
-| `BUILD_CERTIFICATE_P12` | your distribution certificate, base64 encoded |
-| `BUILD_CERTIFICATE_PASSWORD` | the password set when exporting the `.p12` |
+| Secret | Contents | Status |
+| --- | --- | --- |
+| `APPLE_TEAM_ID` | `B592D69P29` | set |
+| `APP_CONNECT_ISSUER_ID` | issuer UUID | set |
+| `APP_CONNECT_KEY_ID` | the key's 10-character ID | **needed** |
+| `APP_CONNECT_KEY_P8` | the whole `.p8`, base64 encoded | **needed** |
+| `BUILD_CERTIFICATE_P12` | distribution certificate, base64 encoded | **needed** |
+| `BUILD_CERTIFICATE_PASSWORD` | password chosen when exporting the `.p12` | **needed** |
+
+The key ID and `.p8` come from *Users and Access > Integrations > App Store
+Connect API*. The `.p12` is your "Apple Distribution" certificate exported from
+Keychain Access (*My Certificates > right-click > Export*).
+
+To base64 a file for a secret:
+
+```sh
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy   # then paste into the secret value
+```
 
 Until those exist the workflow will fail at the signing step; local `make archive`
 uses whatever signing Xcode already has, which is the simplest path for a solo
