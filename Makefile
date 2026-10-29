@@ -22,6 +22,10 @@ extract:
 	$(PYTHON) Scripts/extract_map.py
 	$(PYTHON) Scripts/extract_links.py
 
+# Room-index labels burned onto the map; writes into resources/.
+annotate-map: extract
+	$(PYTHON) Scripts/annotate_map.py
+
 build: generate
 	$(XCODEBUILD) build
 
@@ -37,4 +41,4 @@ run: build
 clean:
 	rm -rf build Wriggler.xcodeproj
 
-.PHONY: generate art extract build test lint run clean
+.PHONY: generate art extract annotate-map build test lint run clean
