@@ -15,7 +15,11 @@ final class RoomRenderer {
     private var background: SKSpriteNode?
     private var decoration: [SKSpriteNode] = []
     private var itemSprites: [Int: SKSpriteNode] = [:]
-    private var worm: SKSpriteNode?
+    private var wormSprites: [Int: SKSpriteNode] = [:]
+
+    /// The player is drawn from the same atlas as the rivals, so it gets an id
+    /// outside the range the rivals use.
+    private static let playerWormID = -1
 
     private let cellPixels: CGFloat
     private let art = RoomArt.shared
@@ -29,10 +33,6 @@ final class RoomRenderer {
     func attach(to parent: SKNode) {
         parent.addChild(roomNode)
         parent.addChild(actorNode)
-        worm = SKSpriteNode(texture: PlayerArt.worm())
-        worm?.size = CGSize(width: cellPixels * 3.75, height: cellPixels * 2.1)
-        worm?.zPosition = 3
-        worm.map(actorNode.addChild)
     }
 
     func sync(world: MazeWorld) {
@@ -41,7 +41,7 @@ final class RoomRenderer {
             renderedRoom = world.roomID
         }
         syncItems(world)
-        syncWorm(world)
+        syncWorms(world)
     }
 
     // MARK: - Room
@@ -92,7 +92,7 @@ final class RoomRenderer {
     /// Enemies are skipped, which is what keeps the ants out.
     private func addDecoration(_ room: Room) {
         guard let layout = art.layout(for: room.id) else { return }
-        for sprite in layout.sprites where art.category(of: sprite.shape) != .enemy {
+        for sprite in layout.sprites where art.category(of: sprite.shape).isPainted {
             guard let texture = art.spriteTexture(sprite.shape) else { continue }
             let node = SKSpriteNode(texture: texture)
             node.size = CGSize(
@@ -126,11 +126,41 @@ final class RoomRenderer {
         }
     }
 
-    private func syncWorm(_ world: MazeWorld) {
-        guard let worm else { return }
-        worm.position = scenePoint(world.player.position, roomHeight: world.room.rows)
-        let flip: CGFloat = world.player.facing == .left ? -1 : 1
-        worm.xScale = abs(worm.xScale) * flip
+    /// Places the player's worm and every rival that is in this room.
+    private func syncWorms(_ world: MazeWorld) {
+        guard let art = art.wormSprite() else { return }
+        let scale = cellPixels / CGFloat(RoomArt.shared.cellPixels)
+        let size = CGSize(
+            width: art.pixels.width * scale,
+            height: art.pixels.height * scale
+        )
+
+        var worms: [Int: (position: Vec2, facing: Facing)] = [
+            Self.playerWormID: (world.player.position, world.player.facing)
+        ]
+        for rival in world.rivalsInRoom {
+            worms[rival.id] = (rival.position, rival.facing)
+        }
+
+        for (id, sprite) in wormSprites where worms[id] == nil {
+            sprite.removeFromParent()
+            wormSprites.removeValue(forKey: id)
+        }
+
+        for (id, worm) in worms {
+            let sprite =
+                wormSprites[id]
+                ?? {
+                    let node = SKSpriteNode(texture: art.texture)
+                    node.size = size
+                    node.zPosition = 3
+                    actorNode.addChild(node)
+                    wormSprites[id] = node
+                    return node
+                }()
+            sprite.position = scenePoint(worm.position, roomHeight: world.room.rows)
+            sprite.xScale = worm.facing == .left ? -1 : 1
+        }
     }
 
     /// Snaps to whole virtual pixels so the upscale stays crisp.
@@ -139,46 +169,5 @@ final class RoomRenderer {
             x: (world.x * cellPixels).rounded(),
             y: (-world.y * cellPixels + CGFloat(roomHeight) * cellPixels).rounded()
         )
-    }
-}
-
-/// The player's worm: same palette and scale as the originals, drawn rather than
-/// cropped so it reads as "yours" against the room's decoration.
-@MainActor
-enum PlayerArt {
-    private static var cached: SKTexture?
-
-    static func worm() -> SKTexture {
-        if let cached { return cached }
-        let width = 30
-        let height = 17
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
-        let image = renderer.image { context in
-            let ctx = context.cgContext
-            let body = SKColor(red: 0.8, green: 0.8, blue: 0.8, alpha: 1)
-            let shade = SKColor(red: 0.62, green: 0.62, blue: 0.62, alpha: 1)
-
-            // Four humps with gaps, like the worms on the original screens.
-            let humps: [(CGFloat, CGFloat, CGFloat)] = [
-                (21, 1, 11), (14, 2, 13), (7, 3, 12), (0, 6, 9),
-            ]
-            ctx.setFillColor(body.cgColor)
-            for (x, y, h) in humps {
-                ctx.fillEllipse(in: CGRect(x: x, y: y, width: 9, height: h))
-            }
-            // A thin belly joining them, so it reads as one creature.
-            ctx.fill(CGRect(x: 1, y: 12, width: 27, height: 3))
-
-            ctx.setFillColor(shade.cgColor)
-            for (x, y, h) in humps.dropLast() {
-                ctx.fill(CGRect(x: x + 8, y: y + 2, width: 1, height: h - 4))
-            }
-            ctx.setFillColor(SKColor.black.cgColor)
-            ctx.fill(CGRect(x: 25, y: 5, width: 2, height: 2))
-        }
-        let texture: SKTexture = SKTexture(image: image)
-        texture.filteringMode = SKTextureFilteringMode.nearest
-        cached = texture
-        return texture
     }
 }

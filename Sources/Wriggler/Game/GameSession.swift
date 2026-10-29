@@ -32,7 +32,23 @@ final class GameSession {
 
     init(maze: Maze, sceneSize: CGSize, demo: Bool = false, startRoom: RoomID? = nil) {
         self.demo = demo
-        var world = MazeWorld(maze: maze)
+        // The opening screen draws four worms: one is the player's, the rest
+        // race him. The original always gives the player the bottom-left one.
+        let drawn =
+            maze.rooms[maze.spawnRoom].map {
+                RoomArt.shared.wormSpawns(for: $0.id)
+            } ?? []
+        let playerStart = drawn.max { left, right in
+            (left.y, -left.x) < (right.y, -right.x)
+        }
+        var world = MazeWorld(
+            maze: maze,
+            start: playerStart.map { WormSpawn(room: maze.spawnRoom, position: $0) },
+            rivals:
+                drawn
+                .filter { $0 != playerStart }
+                .map { WormSpawn(room: maze.spawnRoom, position: $0) }
+        )
         if let startRoom {
             world.teleport(to: startRoom)
         }
