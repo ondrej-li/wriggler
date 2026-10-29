@@ -26,15 +26,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import struct
+import sys
 import urllib.request
 import zlib
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 from scipy import ndimage
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from extract_links import find_rooms  # noqa: E402  (single source of truth)
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "Extracted"
@@ -58,34 +61,6 @@ def ensure_map(path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         urllib.request.urlretrieve(MAP_URL, path)
     return path
-
-
-def find_rooms(img: np.ndarray) -> dict[tuple[int, int], tuple[int, int]]:
-    """Locate every room frame and snap it to the grid."""
-    yellow = np.all(img == YELLOW, axis=2)
-    height, width = yellow.shape
-    rooms: dict[tuple[int, int], tuple[int, int]] = {}
-
-    for y in range(1, height - FRAME[1]):
-        xs = np.nonzero(yellow[y])[0]
-        if len(xs) < FRAME[0]:
-            continue
-        for run in np.split(xs, np.nonzero(np.diff(xs) > 1)[0] + 1):
-            if len(run) != FRAME[0]:
-                continue
-            x0 = int(run[0])
-            # Only treat this as a top edge, and require the frame to close up.
-            if yellow[y - 1, x0 : x0 + FRAME[0]].mean() > 0.95:
-                continue
-            bottom = yellow[y + FRAME[1] - 1, x0 : x0 + FRAME[0]].mean()
-            left = yellow[y : y + FRAME[1], x0].mean()
-            right = yellow[y : y + FRAME[1], x0 + FRAME[0] - 1].mean()
-            if bottom > 0.95 and left > 0.6 and right > 0.6:
-                column = round((x0 - ORIGIN_X) / CELL_W)
-                row = round((y - ORIGIN_Y) / CELL_H)
-                if (x0, y) == (ORIGIN_X + column * CELL_W, ORIGIN_Y + row * CELL_H):
-                    rooms[(column, row)] = (x0, y)
-    return rooms
 
 
 def play_area(img: np.ndarray, x0: int, y0: int) -> np.ndarray:
@@ -119,7 +94,8 @@ def main() -> None:
     img = np.asarray(Image.open(map_path).convert("RGB"))
     print(f"map {map_path.name}: {img.shape[1]}x{img.shape[0]}")
 
-    rooms = find_rooms(img)
+    # find_rooms is keyed by (row, column); this script names files (column, row).
+    rooms = {(column, row): xy for (row, column), xy in find_rooms(img).items()}
     columns = max(c for c, _ in rooms) + 1
     rows = max(r for _, r in rooms) + 1
     print(f"rooms: {len(rooms)} on a {columns}x{rows} grid")
@@ -207,14 +183,6 @@ def main() -> None:
     }
     (OUT / "maze.json").write_text(json.dumps(index, indent=1))
     print("wrote Extracted/maze.json")
-
-    # --- annotated overview ------------------------------------------------
-    overview = Image.fromarray(img).resize((img.shape[1] // 8, img.shape[0] // 8), Image.NEAREST)
-    draw = ImageDraw.Draw(overview)
-    for (c, r), (x0, y0) in rooms.items():
-        draw.text((x0 // 8 + 2, y0 // 8 + 2), f"{c},{r}", fill=(255, 255, 255))
-    overview.save(OUT / "map-indexed.png")
-    print("wrote Extracted/map-indexed.png")
 
 
 if __name__ == "__main__":

@@ -133,6 +133,7 @@ make extract PYTHON=.venv/bin/python   # both of the below
 python3 Scripts/extract_tape.py   # loading screen + memory map from the TZX
 python3 Scripts/extract_map.py    # rooms, tile set and actors from the map
 python3 Scripts/extract_links.py  # the room-to-room maze graph
+python3 Scripts/annotate_map.py   # map with every room's index stamped on it
 ```
 
 ### From the tape
@@ -164,10 +165,14 @@ What the maze contains:
 ### The maze graph
 
 `extract_links.py` traces the white bands that the map draws between rooms.
-Because the author routed every band through empty space, a band almost always
-touches exactly two rooms — so connected-component analysis recovers the graph
-directly. A band stopping just short of a frame is snapped to the nearest room;
-anything still ambiguous is emitted as `?` rather than guessed.
+Because the author routed every band through empty space, a band touches at most
+two rooms — so connected-component analysis recovers the graph directly, with no
+ambiguity: a band joining two rooms is a link, and a band touching one room is a
+dangling exit.
+
+Dangling exits are emitted as `?` rather than guessed at. Guessing was tried and
+turned out to put plausible-looking links into the table that were simply wrong,
+so the curated layer below exists instead.
 
 Exits are written `row,col,slot`, with `0,0` at the top-left of the map and the
 slot encoding the side and which of the three positions on it:
@@ -178,8 +183,28 @@ slot encoding the side and which of the three positions on it:
 ```
 
 So `0,0,8 -> 1,0,0` means "the bottom-left exit of the top-left room leads to the
-top-left exit of the room below it". Current result: 244 rooms, 674 exits,
-656 resolved, 18 left as `?`.
+top-left exit of the room below it". Current result: **244 rooms, 670 exits,
+660 resolved, 10 left as `?`**.
+
+### Curated links
+
+`Scripts/links-overrides.txt` holds hand-traced links and is applied after the
+automatic pass, so it wins:
+
+```
+1,11,a  -> 8,15,4
+33,28,9 -> 35,26,5
+```
+
+The reverse direction is filled in automatically, so a pair is written once. A
+line starting with `-` drops an exit the trace produced which is not a real exit
+(used when a hand-traced slot disagrees with the measured position). The script
+prints any override that contradicts a traced link instead of silently
+overwriting it.
+
+Exit positions are bucketed into thirds of the frame measured from the play area,
+which reproduces the reference notation; the raw centres are in the script if a
+boundary needs moving.
 
 These are reference sheets for building new art, not assets to ship.
 
