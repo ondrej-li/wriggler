@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +52,23 @@ YELLOW = np.array([204, 204, 0], np.uint8)
 SLOTS = "0123456789ab"
 
 Key = tuple[int, int, int]  # row, column, slot
+
+
+@dataclass(frozen=True)
+class Contact:
+    """Where one end of a route meets a room frame."""
+
+    room: tuple[int, int]
+    side: str
+    slot: int
+    # Centre of the band along the side, in map pixels (x for top/bottom, y for left/right).
+    centre: int
+    # Width of the band in pixels.
+    width: int
+
+    @property
+    def key(self) -> tuple[int, int, int]:
+        return (self.room[0], self.room[1], self.slot)
 
 
 def find_rooms(img: np.ndarray) -> dict[tuple[int, int], tuple[int, int]]:
@@ -101,13 +119,13 @@ def contiguous(mask: np.ndarray, origin: int) -> list[tuple[int, int]]:
     return out
 
 
-def trace(img: np.ndarray) -> tuple[dict[int, list[tuple[tuple[int, int], int]]], dict]:
-    """Return, per white band, the (room, slot) pairs it touches."""
+def trace(img: np.ndarray) -> tuple[dict[int, list[Contact]], dict]:
+    """Return, per white band, the frame contacts it makes."""
     bright = np.all(img == BRIGHT, axis=2)
     rooms = find_rooms(img)
     labels, _ = ndimage.label(bright, structure=np.ones((3, 3)))
 
-    contacts: dict[int, list[tuple[tuple[int, int], int]]] = defaultdict(list)
+    contacts: dict[int, list[Contact]] = defaultdict(list)
     for room, (x0, y0) in rooms.items():
         probes = (
             ("top", bright[y0 - 1, x0 : x0 + FRAME_W], x0, y0 - 1, True),
@@ -121,9 +139,15 @@ def trace(img: np.ndarray) -> tuple[dict[int, list[tuple[tuple[int, int], int]]]
                 band = labels[fixed, centre] if horizontal else labels[centre, fixed]
                 if band == 0:
                     continue
-                entry = (room, slot_for(side, centre, (x0, y0)))
-                if entry not in contacts[int(band)]:
-                    contacts[int(band)].append(entry)
+                contact = Contact(
+                    room=room,
+                    side=side,
+                    slot=slot_for(side, centre, (x0, y0)),
+                    centre=centre,
+                    width=end - start + 1,
+                )
+                if (contact.room, contact.slot) not in {(c.room, c.slot) for c in contacts[int(band)]}:
+                    contacts[int(band)].append(contact)
     return contacts, rooms
 
 
@@ -131,14 +155,14 @@ def build_links(contacts: dict[int, list]) -> dict[Key, Key | None]:
     links: dict[Key, Key | None] = {}
     for _, entries in contacts.items():
         if len(entries) == 2:
-            (room_a, slot_a), (room_b, slot_b) = entries
-            a = (room_a[0], room_a[1], slot_a)
-            b = (room_b[0], room_b[1], slot_b)
+            first, second = entries
+            a = first.key
+            b = second.key
             links[a] = b
             links[b] = a
         else:
-            for room, slot in entries:
-                links.setdefault((room[0], room[1], slot), None)
+            for contact in entries:
+                links.setdefault(contact.key, None)
     return links
 
 

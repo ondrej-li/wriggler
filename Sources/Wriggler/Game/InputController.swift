@@ -2,8 +2,8 @@ import Foundation
 import SwiftUI
 import WrigglerCore
 
-/// Collects input from every source (touch, hardware keyboard, game controller) into a
-/// single press-state model and hands the simulation an edge-triggered snapshot per frame.
+/// Collects input from every source (touch, hardware keyboard, controller) into a
+/// single press-state model, and hands the simulation an edge-triggered snapshot.
 @MainActor
 final class InputController {
     enum Button {
@@ -11,11 +11,11 @@ final class InputController {
         case right
         case up
         case down
-        case jump
+        case action
     }
 
     private var pressed: Set<Button> = []
-    private var jumpEdge = false
+    private var actionEdge = false
 
     var moveX: Double {
         (pressed.contains(.right) ? 1 : 0) - (pressed.contains(.left) ? 1 : 0)
@@ -25,31 +25,29 @@ final class InputController {
         (pressed.contains(.down) ? 1 : 0) - (pressed.contains(.up) ? 1 : 0)
     }
 
-    var isJumpHeld: Bool { pressed.contains(.jump) }
-
     func set(_ button: Button, pressed isPressed: Bool) {
         if isPressed {
-            if button == .jump, !pressed.contains(.jump) { jumpEdge = true }
+            if button == .action, !pressed.contains(.action) { actionEdge = true }
             pressed.insert(button)
         } else {
             pressed.remove(button)
         }
     }
 
+    /// Trigger the action button once, for on-screen buttons that fire on tap.
+    func pressAction() {
+        actionEdge = true
+    }
+
     /// Returns the input for the current frame and clears one-shot edges.
     func snapshot() -> GameInput {
-        defer { jumpEdge = false }
-        return GameInput(
-            moveX: moveX,
-            moveY: moveY,
-            jumpPressed: jumpEdge,
-            jumpHeld: isJumpHeld
-        )
+        defer { actionEdge = false }
+        return GameInput(moveX: moveX, moveY: moveY, actionPressed: actionEdge)
     }
 
     func releaseAll() {
         pressed.removeAll()
-        jumpEdge = false
+        actionEdge = false
     }
 }
 
@@ -60,7 +58,7 @@ extension InputController.Button {
         case .rightArrow, "d", "D": self = .right
         case .upArrow, "w", "W": self = .up
         case .downArrow, "s", "S": self = .down
-        case .space, "z", "Z", "k", "K": self = .jump
+        case .space, "e", "E", "z", "Z": self = .action
         default: return nil
         }
     }

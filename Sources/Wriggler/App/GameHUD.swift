@@ -1,62 +1,78 @@
 import SwiftUI
+import WrigglerCore
 
-/// Top bar with the level name, run timer and system buttons.
+/// Room, progress and carried-object readout, plus the system buttons.
 struct GameHUD: View {
     let session: GameSession
-    let onExit: () -> Void
 
     var body: some View {
-        VStack {
-            HStack(alignment: .center, spacing: 16) {
-                HStack(spacing: 14) {
-                    Text(session.level.name.uppercased())
-                        .font(.zx(14, weight: .bold))
-                        .foregroundStyle(Color.zxCyan)
-
-                    Text(time)
-                        .font(.zx(14))
-                        .foregroundStyle(Color.zxYellow)
-                        .monospacedDigit()
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    label(session.roomLabel, tint: .zxCyan)
+                    carried
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                HUDButton(systemImage: session.isPaused ? "play.fill" : "pause.fill") {
-                    session.togglePause()
-                }
-                HUDButton(systemImage: "xmark") {
-                    onExit()
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 8) {
+                        iconButton(session.isPaused ? "play.fill" : "pause.fill") { session.togglePause() }
+                        iconButton("arrow.counterclockwise") { session.restart() }
+                    }
+                    label("ROOMS \(session.roomsExplored)", tint: .zxYellow)
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 8)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
 
             Spacer()
+
+            if let notice = session.notice {
+                Text(notice)
+                    .font(.zx(11, weight: .bold))
+                    .foregroundStyle(Color.zxYellow)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(.bottom, 6)
+            }
         }
         .allowsHitTesting(true)
     }
 
-    private var time: String {
-        String(format: "TIME %05.1f", session.elapsedSeconds)
+    private var carried: some View {
+        HStack(spacing: 6) {
+            Text("HOLDING")
+                .font(.zx(10))
+                .foregroundStyle(Color.zxDimWhite)
+            Text(session.carried?.rawValue.uppercased() ?? "—")
+                .font(.zx(11, weight: .bold))
+                .foregroundStyle(session.carried == nil ? Color.zxDimWhite : Color.zxGreen)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 5))
     }
-}
 
-private struct HUDButton: View {
-    let systemImage: String
-    let action: () -> Void
+    private func label(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.zx(12, weight: .bold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 5))
+    }
 
-    var body: some View {
+    private func iconButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.zxWhite)
-                .frame(width: 38, height: 34)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+                .frame(width: 34, height: 30)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 6)
                         .strokeBorder(Color.zxCyan.opacity(0.35), lineWidth: 1)
                 )
         }
@@ -64,7 +80,6 @@ private struct HUDButton: View {
     }
 }
 
-/// Wide, blocky button used by the menu and the pause overlays.
 struct MenuButton: View {
     let title: String
     let tint: Color
@@ -73,10 +88,10 @@ struct MenuButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.zx(16, weight: .bold))
+                .font(.zx(15, weight: .bold))
                 .foregroundStyle(tint)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 11)
                 .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
@@ -85,10 +100,4 @@ struct MenuButton: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-#Preview {
-    MenuButton(title: "RESUME", tint: .zxGreen) {}
-        .padding(40)
-        .background(Color.zxBlack)
 }

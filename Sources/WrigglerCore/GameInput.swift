@@ -7,24 +7,21 @@ import Foundation
 public struct GameInput: Sendable, Equatable {
     /// Horizontal intent, `-1` (left) ... `1` (right).
     public var moveX: Double
-    /// Vertical intent, `-1` (up) ... `1` (down). Only used on ladders.
+    /// Vertical intent, `-1` (up) ... `1` (down).
     public var moveY: Double
-    /// True on the frame the jump control went down.
-    public var jumpPressed: Bool
-    /// True while the jump control is held (drives variable jump height).
-    public var jumpHeld: Bool
+    /// True on the frame the action button went down: pick up, swap or use.
+    public var actionPressed: Bool
 
-    public init(moveX: Double = 0, moveY: Double = 0, jumpPressed: Bool = false, jumpHeld: Bool = false) {
+    public init(moveX: Double = 0, moveY: Double = 0, actionPressed: Bool = false) {
         self.moveX = moveX
         self.moveY = moveY
-        self.jumpPressed = jumpPressed
-        self.jumpHeld = jumpHeld
+        self.actionPressed = actionPressed
     }
 
     public static let none = GameInput()
 
-    /// Clears edge-triggered fields so a fixed-step loop consumes them only once.
+    /// Clears edge-triggered fields so a value is only acted on once.
     public mutating func consumeEdges() {
-        jumpPressed = false
+        actionPressed = false
     }
 }

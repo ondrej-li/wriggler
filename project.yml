@@ -41,7 +41,7 @@ targets:
       - path: Sources/Wriggler
         excludes:
           - "Resources/Info.plist"
-      - path: Sources/Wriggler/Resources/Levels
+      - path: Sources/Wriggler/Resources/Maze
         type: folder
     dependencies:
       - target: WrigglerCore
@@ -65,7 +65,7 @@ targets:
     platform: iOS
     sources:
       - path: Tests/WrigglerCoreTests
-      - path: Sources/Wriggler/Resources/Levels
+      - path: Sources/Wriggler/Resources/Maze
         type: folder
     dependencies:
       - target: WrigglerCore
