@@ -27,6 +27,7 @@ public struct MazeDefinition: Sendable, Decodable {
         /// One string per row; each character is a tile, see `tiles`.
         public let rows: [String]
         public let floor: String?
+        public let region: String?
         public let items: [ItemDefinition]?
     }
 

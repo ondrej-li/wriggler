@@ -10,10 +10,21 @@ public struct MazePlayer: Sendable, Equatable {
 
     public static let defaultBodySize: Double = 0.9
     public static let defaultWalkSpeed: Double = 6.0
+    /// Gravity in the underground, in tiles per second squared.
+    public static let gravity: Double = 34
+    /// Terminal velocity, in tiles per second.
+    public static let maxFallSpeed: Double = 26
+    /// A fall longer than one screen kills the worm.
+    public static let safeFallDistance: Double = 16
     /// What the worm is holding, if anything.
     public var carried: Item?
     /// Which way it last moved, used to face the sprite.
     public var facing: Facing
+    /// Vertical speed in the underground, in tiles per second, positive downwards.
+    public var fallSpeed: Double = 0
+    /// Distance fallen since last standing on something. Falling more than one
+    /// screen is fatal.
+    public var fallDistance: Double = 0
 
     public init(
         position: Vec2,
@@ -41,6 +52,8 @@ public struct MazePlayer: Sendable, Equatable {
 
     /// Distance at which an object on the floor can be reached.
     public var reach: Double { 1.0 }
+
+    public var isOnGround: Bool { fallSpeed == 0 && fallDistance == 0 }
 }
 
 /// Moves the player around a room, in eight directions, with tile collision.
@@ -50,35 +63,105 @@ public struct MazeMovement: Sendable {
     public struct Step: Sendable {
         public var position: Vec2
         public var facing: Facing
+        public var fallSpeed: Double
+        public var fallDistance: Double
     }
 
-    /// Applies one frame of input. Returns the new position and the room exit the
-    /// player walked through, if any.
-    public func move(player: MazePlayer, input: GameInput, room: Room, exits: [RoomExit], dt: Double) -> (
-        Step, RoomExit?
-    ) {
-        var position = player.position
-        var facing = player.facing
+    /// Applies one frame of input.
+    ///
+    /// Returns the new state, the room exit the worm walked through, if any, and
+    /// whether a long fall just became fatal.
+    public func move(
+        player: MazePlayer,
+        input: GameInput,
+        room: Room,
+        exits: [RoomExit],
+        dt: Double
+    ) -> (Step, RoomExit?, Bool) {
+        room.hasGravity
+            ? undergroundMove(player: player, input: input, room: room, exits: exits, dt: dt)
+            : surfaceMove(player: player, input: input, room: room, exits: exits, dt: dt)
+    }
+
+    /// Gardens: the worm crawls in any of eight directions, no gravity.
+    private func surfaceMove(
+        player: MazePlayer,
+        input: GameInput,
+        room: Room,
+        exits: [RoomExit],
+        dt: Double
+    ) -> (Step, RoomExit?, Bool) {
+        var step = Step(position: player.position, facing: player.facing, fallSpeed: 0, fallDistance: 0)
 
         var direction = Vec2(x: input.moveX, y: input.moveY)
         if direction.length > 1 {
             direction = direction / direction.length
         }
-
         if abs(direction.x) > 0.01 {
-            facing = direction.x > 0 ? .right : .left
+            step.facing = direction.x > 0 ? .right : .left
         }
 
         let delta = direction * (player.speed * dt)
         if delta.x != 0 {
-            position.x = slidX(position, half: player.half, dx: delta.x, room: room, exits: exits)
+            step.position.x = slidX(step.position, half: player.half, dx: delta.x, room: room, exits: exits)
         }
         if delta.y != 0 {
-            position.y = slidY(position, half: player.half, dx: delta.y, room: room, exits: exits)
+            step.position.y = slidY(step.position, half: player.half, dx: delta.y, room: room, exits: exits)
+        }
+
+        let exit = exitCrossed(at: step.position, half: player.half, room: room, exits: exits)
+        return (step, exit, false)
+    }
+
+    /// The underground: walk left and right, gravity does the rest.
+    ///
+    /// Upward input is ignored - the worm cannot crawl up, it can only fall into
+    /// shafts and walk along whatever it lands on.
+    private func undergroundMove(
+        player: MazePlayer,
+        input: GameInput,
+        room: Room,
+        exits: [RoomExit],
+        dt: Double
+    ) -> (Step, RoomExit?, Bool) {
+        var position = player.position
+        var facing = player.facing
+        var fallSpeed = player.fallSpeed
+        var fallDistance = player.fallDistance
+        var died = false
+
+        if input.moveX != 0 {
+            facing = input.moveX > 0 ? .right : .left
+            let dx = input.moveX * player.speed * dt
+            position.x = slidX(position, half: player.half, dx: dx, room: room, exits: exits)
+        }
+
+        fallSpeed = min(fallSpeed + MazePlayer.gravity * dt, MazePlayer.maxFallSpeed)
+        let dy = fallSpeed * dt
+        let feet = position.y + player.half
+        let targetFeet = feet + dy
+
+        if let floorTop = room.floorBelow(
+            x: position.x - player.half,
+            width: player.bodySize,
+            feet: feet,
+            limit: targetFeet
+        ) {
+            // Land on the ledge: the fall ends here.
+            position.y = floorTop - player.half
+            fallSpeed = 0
+            fallDistance = 0
+        } else {
+            position.y += dy
+            fallDistance += dy
+            if fallDistance > MazePlayer.safeFallDistance {
+                died = true
+            }
         }
 
         let exit = exitCrossed(at: position, half: player.half, room: room, exits: exits)
-        return (Step(position: position, facing: facing), exit)
+        let step = Step(position: position, facing: facing, fallSpeed: fallSpeed, fallDistance: fallDistance)
+        return (step, exit, died)
     }
 
     /// Where the player lands when arriving through `doorway` of a room.

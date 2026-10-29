@@ -15,6 +15,8 @@ final class GameSession {
 
     private(set) var roomID: RoomID
     private(set) var carried: ItemKind?
+    private(set) var lives = 3
+    private(set) var isGameOver = false
     private(set) var isPaused = false
     private(set) var notice: String?
     private(set) var roomsExplored = 1
@@ -28,11 +30,15 @@ final class GameSession {
     private var lastTimestamp: CFTimeInterval = 0
     private var noticeFrames = 0
 
-    init(maze: Maze, sceneSize: CGSize, demo: Bool = false) {
+    init(maze: Maze, sceneSize: CGSize, demo: Bool = false, startRoom: RoomID? = nil) {
         self.demo = demo
-        self.world = MazeWorld(maze: maze)
-        self.roomID = maze.spawnRoom
-        self.visited = [maze.spawnRoom]
+        var world = MazeWorld(maze: maze)
+        if let startRoom {
+            world.teleport(to: startRoom)
+        }
+        self.world = world
+        self.roomID = world.roomID
+        self.visited = [world.roomID]
         self.scene = GameScene(size: sceneSize)
         scene.prepare(room: world.room, viewport: sceneSize)
         scene.render(world: world, viewport: sceneSize)
@@ -83,6 +89,8 @@ final class GameSession {
         roomsExplored = 1
         roomID = world.roomID
         carried = nil
+        lives = world.lives
+        isGameOver = false
         notice = nil
         isPaused = false
         lastTimestamp = 0
@@ -104,7 +112,7 @@ final class GameSession {
             show("DROPPED \(dropped.rawValue.uppercased()) · TOOK \(picked.rawValue.uppercased())")
         case .used(let kind):
             show("USED \(kind.rawValue.uppercased())")
-        case .nothingToDo, .enteredRoom:
+        case .nothingToDo, .enteredRoom, .died, .respawned, .gameOver:
             break
         }
         carried = world.player.carried?.kind
@@ -116,7 +124,7 @@ final class GameSession {
         let now = link.targetTimestamp
         let delta = lastTimestamp == 0 ? 0 : now - lastTimestamp
         lastTimestamp = now
-        guard !isPaused else { return }
+        guard acceptsInput else { return }
 
         var snapshot = input.snapshot()
         snapshot.consumeEdges()
@@ -156,6 +164,15 @@ final class GameSession {
                 show("PICKED UP \(kind.rawValue.uppercased())")
             case .swapped(let dropped, let picked):
                 show("DROPPED \(dropped.rawValue.uppercased()) · TOOK \(picked.rawValue.uppercased())")
+            case .died:
+                lives = world.lives
+                show("THE WRIGGLER DIED")
+            case .respawned:
+                roomID = world.roomID
+                scene.prepare(room: world.room, viewport: scene.size)
+            case .gameOver:
+                isGameOver = true
+                show("GAME OVER")
             case .used, .nothingToDo:
                 break
             }
@@ -182,4 +199,7 @@ final class GameSession {
         notice = text
         noticeFrames = 90
     }
+
+    /// Exposed so the HUD can tell whether input should be ignored.
+    var acceptsInput: Bool { !isPaused && !isGameOver }
 }

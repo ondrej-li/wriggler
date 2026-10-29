@@ -26,9 +26,11 @@ struct GameContainerView: View {
                     GameHUD(session: session)
 
                     TouchControls(input: session.input)
-                        .opacity(session.isPaused ? 0 : 1)
+                        .opacity(session.isPaused || session.isGameOver ? 0 : 1)
 
-                    if session.isPaused {
+                    if session.isGameOver {
+                        gameOverOverlay(session)
+                    } else if session.isPaused {
                         pausedOverlay(session)
                     }
                 }
@@ -71,16 +73,41 @@ struct GameContainerView: View {
         let created = GameSession(
             maze: maze,
             sceneSize: size,
-            demo: ProcessInfo.processInfo.arguments.contains("-demo")
+            demo: ProcessInfo.processInfo.arguments.contains("-demo"),
+            startRoom: Self.startRoomOverride()
         )
         session = created
         created.start()
         isFocused = true
     }
 
+    /// `-room 13,19` launches straight into that room, for checking it in isolation.
+    private static func startRoomOverride() -> RoomID? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-room"), index + 1 < arguments.count else {
+            return nil
+        }
+        return RoomID(arguments[index + 1])
+    }
+
     static let topBarHeight: CGFloat = 44
     static let controlsHeight: CGFloat = 108
     static let sideMargin: CGFloat = 10
+
+    private func gameOverOverlay(_ session: GameSession) -> some View {
+        ZStack {
+            Color.black.opacity(0.78).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("GAME OVER")
+                    .font(.zx(32, weight: .heavy))
+                    .foregroundStyle(Color.zxMagenta)
+                Text("Out of lives after \(session.roomsExplored) rooms")
+                    .font(.zx(12))
+                    .foregroundStyle(Color.zxDimWhite)
+                MenuButton(title: "TRY AGAIN", tint: .zxGreen) { session.restart() }
+            }
+        }
+    }
 
     private func pausedOverlay(_ session: GameSession) -> some View {
         ZStack {

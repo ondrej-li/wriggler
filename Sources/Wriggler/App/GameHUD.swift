@@ -21,6 +21,7 @@ struct GameHUD: View {
                         iconButton("arrow.counterclockwise") { session.restart() }
                     }
                     label("ROOMS \(session.roomsExplored)", tint: .zxYellow)
+                    lives
                 }
             }
             .padding(.horizontal, 16)
@@ -39,6 +40,19 @@ struct GameHUD: View {
             }
         }
         .allowsHitTesting(true)
+    }
+
+    private var lives: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { index in
+                Image(systemName: index < session.lives ? "heart.fill" : "heart")
+                    .font(.system(size: 11))
+                    .foregroundStyle(index < session.lives ? Color.zxMagenta : Color.zxDimWhite.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 5))
     }
 
     private var carried: some View {

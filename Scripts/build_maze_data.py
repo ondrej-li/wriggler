@@ -306,7 +306,13 @@ def main() -> None:
         floor = room_floor_colour(img, origin, doors)
         rows = classify_room(img, origin, floor, doors)
         tile_counts.update("".join(rows))
-        payload_rooms[f"{row},{column}"] = {"rows": rows, "floor": floor}
+        payload_rooms[f"{row},{column}"] = {
+            "rows": rows,
+            "floor": floor,
+            # Gardens are crawled over; the underground is walked with gravity,
+            # so the worm falls down shafts.
+            "region": "surface" if floor == "green" else "underground",
+        }
 
     items = find_items(img, rooms)
     for key, found in items.items():

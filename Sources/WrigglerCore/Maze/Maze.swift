@@ -71,6 +71,7 @@ public struct Maze: Sendable {
                 columns: columns,
                 rows: rows,
                 floor: value.floor ?? "green",
+                region: value.region.flatMap(Region.init(rawValue:)) ?? .surface,
                 kinds: kinds
             )
 

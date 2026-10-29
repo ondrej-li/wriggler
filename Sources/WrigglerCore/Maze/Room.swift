@@ -43,6 +43,16 @@ public struct Doorway: Sendable, Equatable {
     }
 }
 
+/// How a room behaves underfoot.
+public enum Region: String, Sendable, Codable {
+    /// Gardens: the worm crawls over the floor in any direction.
+    case surface
+    /// The underground: gravity applies, the worm walks and falls down shafts.
+    case underground
+
+    public var hasGravity: Bool { self == .underground }
+}
+
 /// A room's grid of tiles, in row-major order with the origin top-left.
 public struct Room: Sendable, Equatable {
     public let id: GridPoint
@@ -50,16 +60,27 @@ public struct Room: Sendable, Equatable {
     public let rows: Int
     /// The floor colour this room's map region uses, kept for rendering.
     public let floor: String
+    public let region: Region
     private let kinds: [TileKind]
 
-    public init(id: GridPoint, columns: Int, rows: Int, floor: String = "green", kinds: [TileKind]) {
+    public init(
+        id: GridPoint,
+        columns: Int,
+        rows: Int,
+        floor: String = "green",
+        region: Region = .surface,
+        kinds: [TileKind]
+    ) {
         precondition(kinds.count == columns * rows, "tile count does not match room size")
         self.id = id
         self.columns = columns
         self.rows = rows
         self.floor = floor
+        self.region = region
         self.kinds = kinds
     }
+
+    public var hasGravity: Bool { region.hasGravity }
 
     /// Tiles outside the room read as brick, so the room is implicitly walled in.
     public func kind(x: Int, y: Int) -> TileKind {
@@ -73,6 +94,26 @@ public struct Room: Sendable, Equatable {
 
     public func isPassable(x: Int, y: Int) -> Bool {
         kind(x: x, y: y).isPassable
+    }
+
+    /// Top edge of the first blocking tile strictly below `feet`, within the
+    /// horizontal span of the body. Used to land the worm exactly on a ledge.
+    public func floorBelow(x: Double, width: Double, feet: Double, limit: Double) -> Double? {
+        let minColumn = max(0, Int(x.rounded(.down)))
+        let maxColumn = min(columns - 1, Int((x + width - 1e-6).rounded(.down)))
+        guard minColumn <= maxColumn else { return nil }
+        let firstRow = max(0, Int(feet.rounded(.down)))
+        let lastRow = min(rows - 1, Int(limit.rounded(.up)))
+        guard firstRow <= lastRow else { return nil }
+        for row in firstRow...lastRow {
+            for column in minColumn...maxColumn where !isPassable(x: column, y: row) {
+                let top = Double(row)
+                if top >= feet - 1e-9, top <= limit + 1e-9 {
+                    return top
+                }
+            }
+        }
+        return nil
     }
 
     /// True when the rectangle overlaps any blocking tile.
