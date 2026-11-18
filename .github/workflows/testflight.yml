@@ -56,24 +56,6 @@ jobs:
         env:
           APP_CONNECT_KEY_P8: ${{ secrets.APP_CONNECT_KEY_P8 }}
 
-      - name: Install the distribution certificate
-        run: |
-          set -euo pipefail
-          keychain=/tmp/wriggler-signing.keychain-db
-          password=$(openssl rand -hex 16)
-          security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 3600 "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          echo "${BUILD_CERTIFICATE_P12}" | base64 --decode > /tmp/certificate.p12
-          security import /tmp/certificate.p12 -k "$keychain" -P "${BUILD_CERTIFICATE_PASSWORD}" \
-            -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
-          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
-          rm /tmp/certificate.p12
-        env:
-          BUILD_CERTIFICATE_P12: ${{ secrets.BUILD_CERTIFICATE_P12 }}
-          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
-
       - name: Generate the project
         run: xcodegen generate
 

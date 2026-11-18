@@ -81,18 +81,18 @@ takes a short while to finish processing before testers can install it.
 `.github/workflows/testflight.yml` archives and uploads on demand, or on a `v*`
 tag. It needs these repository secrets:
 
-| Secret | Contents | Status |
-| --- | --- | --- |
-| `APPLE_TEAM_ID` | `B592D69P29` | set |
-| `APP_CONNECT_ISSUER_ID` | issuer UUID | set |
-| `APP_CONNECT_KEY_ID` | the key's 10-character ID | **needed** |
-| `APP_CONNECT_KEY_P8` | the whole `.p8`, base64 encoded | **needed** |
-| `BUILD_CERTIFICATE_P12` | distribution certificate, base64 encoded | **needed** |
-| `BUILD_CERTIFICATE_PASSWORD` | password chosen when exporting the `.p12` | **needed** |
+| Secret | Contents |
+| --- | --- |
+| `APPLE_TEAM_ID` | `B592D69P29` |
+| `APP_CONNECT_KEY_ID` | the key's 10-character ID |
+| `APP_CONNECT_ISSUER_ID` | the issuer UUID above the key list |
+| `APP_CONNECT_KEY_P8` | the whole `AuthKey_<id>.p8`, base64 encoded |
+
+No certificate is stored: the runner signs with the API key alone
+(`-allowProvisioningUpdates` plus `-authenticationKeyPath`), so no
+developer machine and no keychain is involved.
 
 The key ID and `.p8` come from *Users and Access > Integrations > App Store
-Connect API*. The `.p12` is your "Apple Distribution" certificate exported from
-Keychain Access (*My Certificates > right-click > Export*).
 
 To base64 a file for a secret:
 
