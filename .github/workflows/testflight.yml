@@ -2,9 +2,10 @@ name: TestFlight
 
 # Archives a signed build and uploads it to TestFlight.
 #
-# Manual runs upload only when asked to; tag pushes always upload. The signing
-# secrets are documented in docs/TESTFLIGHT.md - without them this fails at the
-# archive step, which is expected until the repository is configured.
+# A tag push always uploads; a manual run uploads unless you untick the box, so
+# a run can also just prove that signing works. The six signing secrets are
+# documented in docs/TESTFLIGHT.md - without them this fails before the archive,
+# naming the one that is missing.
 
 on:
   workflow_dispatch:
@@ -12,7 +13,7 @@ on:
       upload:
         description: Upload to TestFlight after archiving
         type: boolean
-        default: false
+        default: true
   push:
     tags:
       - "v*"
