@@ -23,7 +23,7 @@ Support/                   ExportOptions.plist, other build inputs
 resources/                 room artwork and audio
 docs/TESTFLIGHT.md         shipping, secrets, testers
 project.yml                XcodeGen spec — Wriggler.xcodeproj is generated, not committed
-.github/workflows/         ci.yml (lint + build + test), testflight.yml (archive + upload)
+.github/workflows/         ci.yml (lint + build + test); nothing publishes from CI
 local.mk                   your team ID and device name; not committed
 ```
 
@@ -55,14 +55,17 @@ Nothing here builds on Linux.
 
 ## Shipping
 
-`.github/workflows/testflight.yml` archives a signed build and uploads it to
-TestFlight. A `v*` tag uploads; a manual run uploads unless you untick the box.
-Six repository secrets are needed — [`docs/TESTFLIGHT.md`](docs/TESTFLIGHT.md) has
-the table, and notes that four of them are still missing.
+**Publishing is manual; CI does not upload anything** and no Apple credential is
+stored in this repository.
 
-`make archive` / `make upload` / `make upload-xcode` remain for a machine with
-Xcode; `make upload-xcode` uses the signed-in Apple ID, so it is the only route
-that needs no API key.
+```sh
+make archive          # signed .xcarchive, then .ipa in build/export
+make upload           # needs an App Store Connect API key in the environment
+make upload-xcode     # or: via the Apple ID signed into Xcode, no key needed
+```
+
+[`docs/TESTFLIGHT.md`](docs/TESTFLIGHT.md) has the detail, including the store
+checklist that is easy to lose.
 
 ## Conventions
 
