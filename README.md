@@ -49,6 +49,10 @@ make run        # build, install and launch on a simulator
 Xcode, where the `Wriggler` scheme is ready to run. Pick a simulator and press
 run, or choose your device after setting a team (below).
 
+The commands below need a full Xcode. You do not need one to contribute:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) generates the project,
+lints it and runs the core test suite on a macOS runner for every push.
+
 `Wriggler.xcodeproj` is generated and therefore not committed — run `make open`
 after pulling and the project appears, correctly configured.
 
