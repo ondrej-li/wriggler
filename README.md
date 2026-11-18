@@ -69,8 +69,8 @@ simulator works fine and Xcode only asks for a team when you target a device.
 
 **Shipping to TestFlight** is `make upload-xcode` (one step, uses the account
 signed in to Xcode) or `make archive` then `make upload` (needs an App Store Connect
-API key). See [docs/TESTFLIGHT.md](./docs/TESTFLIGHT.md) for the setup and the CI
-workflow.
+API key). See [docs/TESTFLIGHT.md](./docs/TESTFLIGHT.md) for the steps. Nothing
+publishes from CI, and no Apple credential is stored in this repository.
 
 Launch flags while iterating:
 
